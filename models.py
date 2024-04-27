@@ -4,7 +4,6 @@ from pydantic import BaseModel
 from typing import Optional
 
 
-# for login
 class User_login(BaseModel):
     type: str
     email: str
@@ -29,6 +28,9 @@ class add_vacancy(BaseModel):
     project_type: str
     num_of_vacancies: int
     more_details: str
+
+class UpdateVacancyStatus(BaseModel):
+    new_status: str
 
 class W_Hours(BaseModel):
     time:str

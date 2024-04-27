@@ -32,6 +32,9 @@ async def login(user_login: User_login):
     # Retrieve user data for login using User_login model
     existing_user = collection_user.find_one(
         {"user_email": user_login.email}, 
+
+
+        
         {"_id": 0, "user_email": 1, "user_pw": 1, "user_type": 1}
     )
     if not existing_user:
@@ -48,4 +51,4 @@ async def login(user_login: User_login):
     )
 
     return {"access_token": access_token, "type": existing_user.get("user_type")}
-    
+        
