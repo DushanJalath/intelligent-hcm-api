@@ -9,6 +9,8 @@ from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from database import collection_user
 from models import User_login,User
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+import joblib
+import pandas as pd
 
 def create_access_token(data: dict, expires_delta: timedelta):
     to_encode = data.copy()
@@ -81,3 +83,70 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     if user is None:
         raise credentials_exception
     return user
+
+
+def is_holiday(date):
+    future_holidays = {
+        "0115": "Tamil Thai Pongal Day",
+        "0125": "Duruthu Full Moon Poya Day",
+        "0204": "Independence Day",
+        "0223": "Navam Full Moon Poya Day",
+        "0308": "Mahasivarathri Day",
+        "0324": "Medin Full Moon Poya Day",
+        "0329": "Good Friday",
+        "0411": "Id-Ul-Fitr (Ramazan Festival Day)",
+        "0412": "Day prior to Sinhala & Tamil New Year Day",
+        "0413": "Sinhala & Tamil New Year Day",
+        "0423": "Bak Full Moon Poya Day",
+        "0501": "May Day (International Workers Day)",
+        "0523": "Vesak Full Moon Poya Day",
+        "0524": "Day following Vesak Full Moon Poya Day",
+        "0617": "Id-Ul-Alha (Hadji Festival Day)",
+        "0621": "Poson Full Moon Poya Day",
+        "0720": "Esala Full Moon Poya Day",
+        "0819": "Nikini Full Moon Poya Day",
+        "0916": "Milad-Un-Nabi (Holy Prophet's Birthday)",
+        "0917": "Binara Full Moon Poya Day",
+        "1017": "Vap Full Moon Poya Day",
+        "1031": "Deepavali Festival Day",
+        "1115": "Ill Full Moon Poya Day",
+        "1214": "Unduvap Full Moon Poya Day",
+        "1225": "Christmas Day"
+    }
+
+    if date in future_holidays.keys():
+        return 1
+    else:
+        return 0
+
+def create_future_data(date):
+    future_date_datetime = pd.to_datetime(date, format='%m%d', errors='raise')
+    print("Input Date:", future_date_datetime)
+
+    next_day = future_date_datetime + pd.DateOffset(days=1)
+    previous_day = future_date_datetime - pd.DateOffset(days=1)
+    print("Next Day:", next_day)
+    print("Previous Day:", previous_day)
+
+    next_day_holiday = is_holiday(next_day.strftime("%m%d"))
+    previous_day_holiday = is_holiday(previous_day.strftime("%m%d"))
+    print("Next Day Holiday:", next_day_holiday)
+    print("Previous Day Holiday:", previous_day_holiday)
+
+    is_holiday_flag = 1 if is_holiday(date) else 0
+    print("Is Holiday Flag:", is_holiday_flag)
+
+    day_of_week = future_date_datetime.dayofweek
+    print("Day of the Week:", day_of_week)
+
+    if previous_day.dayofweek == 6 and next_day_holiday:
+        previous_day_holiday = 1
+
+    future_data = pd.DataFrame({
+        "Previous day is a holiday": [previous_day_holiday],
+        "Is Holiday": [is_holiday_flag],
+        "Next day is a holiday": [next_day_holiday],
+        "Day of the week": [day_of_week]
+    })
+
+    return future_data

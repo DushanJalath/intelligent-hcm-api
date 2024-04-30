@@ -41,12 +41,13 @@ class W_Hours(BaseModel):
     u_id:str
 
 class Bills(BaseModel):
-    status:bool
     bill_id:str
     amount:float
-    category:float
-    details:str
+    category:str
     u_id:str
+    storename:str
+    Date:str
+    status:str
 
 class Leaves(BaseModel):
     l_id:str
@@ -63,6 +64,10 @@ class Candidate(BaseModel):
     c_id:str
     vacancy_id:str
 
+class UpdateCandidateStatus(BaseModel):
+    new_status:str
+
+
 class Parsed_Candidates(BaseModel):
     candidate_id:str
     id:str
@@ -77,3 +82,11 @@ class Interview(BaseModel):
     venue:str
     i_id:str
     interviewer_id:str
+
+class PredictionRequest(BaseModel):
+    date: str
+
+class PredictionResponse(BaseModel):
+    date: str
+    predicted_attendance: int
+
