@@ -9,7 +9,7 @@ class User_login(BaseModel):
     email: str
     password: str
     
-class TokenRefresh(BaseModel):
+class RefreshTokenRequest(BaseModel):
     refresh_token: str
 
 class User(BaseModel):

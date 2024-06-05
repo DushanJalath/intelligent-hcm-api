@@ -28,7 +28,9 @@ def decode_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except PyJWTError:
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except (jwt.InvalidTokenError, jwt.InvalidSignatureError):
         raise HTTPException(status_code=401, detail="Invalid token")
     
 def hash_password(password: str) -> str:

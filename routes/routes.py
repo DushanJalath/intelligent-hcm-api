@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import timedelta
-from models import User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus
+from models import User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus, RefreshTokenRequest
 from utils import get_current_user
 from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from gridfs import GridFS
@@ -36,8 +36,8 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     return await login_user(form_data, ACCESS_TOKEN_EXPIRE_MINUTES)  # Ensure async function is awaited
 
 @router.post("/refresh_token")
-async def refresh_access_token(refresh_token: str):
-    return refresh_tokens(refresh_token)
+async def refresh_access_token(refresh_request: RefreshTokenRequest):
+    return refresh_tokens(refresh_request.refresh_token)
 
 @router.post("/users/")
 async def create_user(user: User):
