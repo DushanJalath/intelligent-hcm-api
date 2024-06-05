@@ -8,6 +8,9 @@ class User_login(BaseModel):
     type: str
     email: str
     password: str
+    
+class TokenRefresh(BaseModel):
+    refresh_token: str
 
 class User(BaseModel):
     user_id:str

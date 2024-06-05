@@ -1,15 +1,14 @@
+# main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import auth_routes, user_routes, products_routes
+from routes import routes
 from fastapi.security import OAuth2PasswordBearer
-import utils
 
 app = FastAPI()
 
 origins = [
     "https://localhost:3000",  
     "http://localhost:3000",   
-
 ]
 
 app.add_middleware(
@@ -20,10 +19,8 @@ app.add_middleware(
     allow_headers=["*"],  
 )
 
-app.include_router(auth_routes.router)
-app.include_router(user_routes.router)
-app.include_router(products_routes.router)
-    
+app.include_router(routes.router)
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
