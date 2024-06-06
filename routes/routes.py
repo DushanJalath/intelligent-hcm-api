@@ -39,7 +39,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 async def refresh_access_token(refresh_token: str):
     return refresh_tokens(refresh_token)
 
-@router.post("/users/")
+@router.post("/users")
 async def create_user(user: User):
     return create_new_user(user)
 

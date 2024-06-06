@@ -13,16 +13,12 @@ class TokenRefresh(BaseModel):
     refresh_token: str
 
 class User(BaseModel):
-    user_id:str
-    user_pw:str
-    salary:float
-    user_type:str
-    address:str
-    user_email:str
-    project:str
-    user_name:str
+    name:str
     contact:str
-    manager_id:str   
+    email:str
+    address:str
+    password:str
+    empType:str
 
 class add_vacancy(BaseModel):
     possition: str
