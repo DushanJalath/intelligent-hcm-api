@@ -2,7 +2,7 @@
 from pymongo import MongoClient
 from gridfs import GridFS
 
-client = MongoClient('mongodb://localhost:27017')
+client = MongoClient('mongodb+srv://oshen:oshen@cluster0.h2my8yk.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
 
 database = client.HCM
 
