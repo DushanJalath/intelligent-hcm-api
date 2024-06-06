@@ -31,13 +31,13 @@ def refresh_tokens(refresh_token: str):
     new_access_token = create_access_token(data={"email": email}, expires_delta=access_token_expires)
     return {"access_token": new_access_token, "token_type": "bearer"}
 
-def create_new_user(user):
-    existing_user = collection_user.find_one({"email": user.user_email})
+def create_new_user(user:User):
+    existing_user = collection_user.find_one({"email": user.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
-    hashed_password = hash_password(user.user_pw)
+    hashed_password = hash_password(user.password)
     user_data = user.dict()
-    user_data["user_pw"] = hashed_password
+    user_data["password"] = hashed_password
     inserted_user = collection_user.insert_one(user_data)
     return {"message": "User created successfully", "user_id": str(inserted_user.inserted_id)}
 
