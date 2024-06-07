@@ -15,10 +15,10 @@ class TokenRefresh(BaseModel):
 class User(BaseModel):
     name:str
     contact:str
-    email:str
+    user_email:str
     address:str
-    password:str
-    empType:str
+    user_pw:str
+    user_type:str
 
 class add_vacancy(BaseModel):
     possition: str
