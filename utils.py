@@ -87,3 +87,47 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise credentials_exception
     return user
 
+def extract_entities_from_text(billtext):
+    
+    url = "https://ai-textraction.p.rapidapi.com/textraction"
+    payload = {
+	"text": billtext
+    ,
+	"entities": [
+		{
+			"var_name": "store",
+			"type": "string",
+			"description": "invoice store"
+		},
+		{
+			"var_name": "invoicenumber",
+			"type": "string",
+			"description": "invoice reference number"
+		},
+		{
+			"var_name": "date",
+			"type": "string",
+			"description": "date"
+		},
+		{
+			"var_name": "totalpayableamount",
+			"type": "float",
+			"description": "total amount in invoice"
+		},
+		
+	]
+    }
+    headers = {
+	"content-type": "application/json",
+	"X-RapidAPI-Key": "998c96c929msh24a280d46e133afp144d06jsna115bef7f7da",
+	"X-RapidAPI-Host": "ai-textraction.p.rapidapi.com"
+    }
+    
+    res = requests.post(url, json=payload, headers=headers).json()
+    data = {"storename": res['results']['store'],
+    "invoicenumber": res['results']['invoicenumber'],
+    "date": res['results']['date'],
+    "totalamount": res['results']['totalpayableamount']
+    }
+    return(data)
+

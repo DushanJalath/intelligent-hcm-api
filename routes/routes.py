@@ -17,7 +17,10 @@ from services import (
     get_hr_vacancies_service,
     update_hr_vacancy_status,
     create_new_bill,
+    extract_bill_entity,
+    get_user_bill_status,
     get_hr_bills_service,
+    get_bill_pdf,
     update_hr_bill_status,
     create_new_candidate,
     get_candidates_service,
@@ -69,9 +72,18 @@ def get_hr_vacancies(current_user: User = Depends(get_current_user)):
 def update_hr_vacancy(vacancy_id: str, status_data: UpdateVacancyStatus, current_user: User = Depends(get_current_user)):
     return update_hr_vacancy_status(vacancy_id, status_data, current_user)
 
+@router.post("/extract_bill_entity")
+async def extract_entity(image: UploadFile = File(...),current_user: User = Depends(get_current_user)):
+    return await extract_bill_entity(image)
+
 @router.post("/create_bill")
 def create_bill(request_data: Bills, current_user: User = Depends(get_current_user)):
     return create_new_bill(request_data, current_user)
+
+@router.get("/bill_status")
+def get_bill_status(current_user: User = Depends(get_current_user)):
+    return get_user_bill_status(current_user)
+
 
 @router.get("/get_hr_bills")
 def get_hr_bills(current_user: User = Depends(get_current_user)):
@@ -80,6 +92,10 @@ def get_hr_bills(current_user: User = Depends(get_current_user)):
 @router.put("/update_hr_bill/{bill_id}")
 def update_hr_bill(bill_id: str, status_data: UpdateVacancyStatus, current_user: User = Depends(get_current_user)):
     return update_hr_bill_status(bill_id, status_data, current_user)
+
+@router.get("/get_bill_pdf/{bill_id}")
+def get_billpdf(bill_id: str,current_user: User = Depends(get_current_user)):
+    return get_bill_pdf(bill_id,current_user)
 
 @router.post("/create_candidate")
 def create_candidate(request_data: Candidate):

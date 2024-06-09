@@ -40,13 +40,14 @@ class OT_Work_Hours(BaseModel):
     u_id:str
 
 class Bills(BaseModel):
-    bill_id:str
+    u_id:str
     amount:float
     category:str
-    email:str
     storename:str
     Date:str
     status:str
+    submitdate:str
+    invoice_number:str
 
 class Leaves(BaseModel):
     l_id:str
