@@ -1,13 +1,20 @@
 # services.py
 from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit
 from models import EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus
-from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token
+from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text
 from datetime import timedelta
 from bson import ObjectId
 from gridfs import GridFS
 from fastapi import HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse
 from config import REFRESH_TOKEN_EXPIRE_DAYS,ACCESS_TOKEN_EXPIRE_MINUTES
+from reportlab.pdfgen import canvas 
+from reportlab.pdfbase.ttfonts import TTFont 
+from reportlab.pdfbase import pdfmetrics 
+from reportlab.lib import colors 
+from reportlab.lib.pagesizes import letter
+import io ,os
+import requests
 
 def get_gridfs():
     return fs
@@ -114,6 +121,42 @@ def update_hr_vacancy_status(vacancy_id, status_data, current_user):
     collection_add_vacancy.update_one({"vacancy_id": vacancy_id}, {"$set": {"status": status_data.new_status}})
     return {"message": f"Vacancy {vacancy_id} updated successfully"}
 
+async def extract_bill_entity(image):
+    if image is None:
+        return {"error": "No image provided"}
+    with open("invoiceimage.jpg", "wb") as temp_file:
+        temp_file.write(await image.read())
+    text = """INVOICE
+
+Company Name
+1234 56th Street S.W.
+City, Country, 12345
+Phone: (123) 456-7890
+Fax: (123) 456-7890
+
+Invoice Date: 01/02/2019
+Invoice #: 123456
+Customer Code: 789
+
+BILL TO:
+Company Name
+1234 56th Street S.W.
+City, Country, 12345
+Phone: (123) 456-7890
+Fax: (123) 456-7890
+
+Description     Amount
+Service appointment     $147.00
+Parts and labor $72.50
+
+Subtotal:       $219.50
+Tax Rate:       5.017 %
+Tax:    $10.98
+TOTAL DUE:      $230.48
+
+PAID"""
+    return (extract_entities_from_text(text))
+
 def create_new_bill(request_data, current_user):
     last_bill = collection_bills.find_one(sort=[("_id", -1)])
     last_id = last_bill["bill_id"] if last_bill else "B000"
@@ -126,13 +169,46 @@ def create_new_bill(request_data, current_user):
         "user_email": current_user.get("user_email"),
         "amount": request_data.amount,
         "category": request_data.category,
-        "u_id": request_data.u_id,
         "storename": request_data.storename,
         "Date": request_data.Date,
-        "status": "pending"
+        "status": "pending",
+        "submitdate": request_data.submitdate,
+        "invoice_number": request_data.invoice_number
     }
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    c.drawString(100, 750, "Invoice Details")
+    c.drawString(100, 700, f"BillID: {data['bill_id']}")
+    c.drawString(100, 670, f"Useremail: {data['user_email']}")
+    c.drawString(100, 640, f"Category: {data['category']}")
+    c.drawString(100, 610, f"Store Name: {data['storename']}")
+    c.drawString(100, 580, f"Amount: {data['amount']}")
+    c.drawString(100, 550, f"Date: {data['Date']}")
+    c.drawString(100, 520, f"Invoice Number: {data['invoice_number']}")
+    image_path = 'invoiceimage.jpg' 
+    c.drawImage(image_path, 150, 100, width=300, height=300)
+    c.save()
+    pdf_content = buffer.getvalue()
+    data['pdf_content'] = pdf_content
     collection_bills.insert_one(data)
+    os.remove(image_path)
     return {"message": "Bill created successfully"}
+
+def get_user_bill_status(current_user):
+    if current_user.get('user_type') not in ["HR", "Manager" ,"Employee"]:
+        raise HTTPException(status_code=403, detail="Unauthorized, only Employees can upload bills")
+    try:
+        cursor = collection_bills.find(
+        {"user_email": current_user.get('user_email')},
+        {"category": 1, "submitdate": 1, "status": 1, "_id": 0}
+        )
+        results = list(cursor)
+        if not results:
+            raise HTTPException(status_code=404, detail="No bills found for the given employee ID")
+        return results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 def get_hr_bills_service(current_user):
     if current_user.get('user_type') != "HR":
@@ -143,10 +219,17 @@ def get_hr_bills_service(current_user):
         bills_data = {
             "bill_id": bills["bill_id"],
             "category": bills["category"],
-            "Date": bills["Date"],
+            "Date": bills["submitdate"],
         }
         bills_hr.append(bills_data)
     return bills_hr
+
+def get_bill_pdf(bill_id,current_user):
+    if current_user.get('user_type') != "HR":
+        raise HTTPException(status_code=403, detail="Unauthorized, only HR can view bills")
+    document = collection_bills.find_one({'bill_id': bill_id})
+    pdf_data = document['pdf_content']
+    return Response(content=pdf_data, media_type='application/pdf')
 
 def update_hr_bill_status(bill_id, status_data, current_user):
     if current_user.get('user_type') != "HR":
@@ -240,3 +323,47 @@ def empTimeReport(timeRep:EmpTimeRep):
     form_data = timeRep.dict()
     inserted_user = collection_emp_time_rep.insert_one(form_data)
     return {"message": "Time Reported Success fully", "user_id": str(inserted_user.inserted_id)}
+
+def extract_entities_from_text(billtext):
+    
+    url = "https://ai-textraction.p.rapidapi.com/textraction"
+    payload = {
+	"text": billtext
+    ,
+	"entities": [
+		{
+			"var_name": "store",
+			"type": "string",
+			"description": "invoice store"
+		},
+		{
+			"var_name": "invoicenumber",
+			"type": "string",
+			"description": "invoice reference number"
+		},
+		{
+			"var_name": "date",
+			"type": "string",
+			"description": "date"
+		},
+		{
+			"var_name": "totalpayableamount",
+			"type": "float",
+			"description": "total amount in invoice"
+		},
+		
+	]
+    }
+    headers = {
+	"content-type": "application/json",
+	"X-RapidAPI-Key": "998c96c929msh24a280d46e133afp144d06jsna115bef7f7da",
+	"X-RapidAPI-Host": "ai-textraction.p.rapidapi.com"
+    }
+    
+    res = requests.post(url, json=payload, headers=headers).json()
+    data = {"storename": res['results']['store'],
+    "invoicenumber": res['results']['invoicenumber'],
+    "date": res['results']['date'],
+    "totalamount": res['results']['totalpayableamount']
+    }
+    return(data)
