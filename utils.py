@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from config import SECRET_KEY, ALGORITHM
 from database import collection_user
 from fastapi.security import OAuth2PasswordBearer
+import requests
 
 
 def create_access_token(data: dict, expires_delta: timedelta):
