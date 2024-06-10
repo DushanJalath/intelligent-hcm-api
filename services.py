@@ -5,7 +5,7 @@ from utils import hash_password, verify_password, create_access_token, create_re
 from datetime import timedelta
 from bson import ObjectId
 from gridfs import GridFS
-from fastapi import HTTPException, UploadFile, File
+from fastapi import HTTPException, UploadFile, File, Response
 from fastapi.responses import StreamingResponse
 from config import REFRESH_TOKEN_EXPIRE_DAYS,ACCESS_TOKEN_EXPIRE_MINUTES
 from reportlab.pdfgen import canvas 
@@ -14,7 +14,6 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.lib import colors 
 from reportlab.lib.pagesizes import letter
 import io ,os
-import requests
 
 def get_gridfs():
     return fs
