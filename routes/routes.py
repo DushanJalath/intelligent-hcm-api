@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from datetime import timedelta
-from models import EmpTimeRep, EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus
+from models import EmpTimeRep, EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel
 from utils import get_current_user
 from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from gridfs import GridFS
@@ -17,7 +17,6 @@ from services import (
     get_hr_vacancies_service,
     update_hr_vacancy_status,
     create_new_bill,
-    extract_bill_entity,
     get_user_bill_status,
     get_hr_bills_service,
     get_bill_pdf,
@@ -29,7 +28,8 @@ from services import (
     download_candidate_cv,
     get_gridfs,
     empSubmitForm,
-    empTimeReport
+    empTimeReport,
+    upload_bills
 )
 
 router = APIRouter()
@@ -72,9 +72,9 @@ def get_hr_vacancies(current_user: User = Depends(get_current_user)):
 def update_hr_vacancy(vacancy_id: str, status_data: UpdateVacancyStatus, current_user: User = Depends(get_current_user)):
     return update_hr_vacancy_status(vacancy_id, status_data, current_user)
 
-@router.post("/extract_bill_entity")
-async def extract_entity(image: UploadFile = File(...),current_user: User = Depends(get_current_user)):
-    return await extract_bill_entity(image)
+@router.post("/upload-bill/")
+async def upload_bill_route(file: UploadFile = File(...),current_user: User = Depends(get_current_user)):
+    return await upload_bills(file)
 
 @router.post("/create_bill")
 def create_bill(request_data: Bills, current_user: User = Depends(get_current_user)):

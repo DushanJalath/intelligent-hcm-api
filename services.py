@@ -1,7 +1,7 @@
 # services.py
-from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit
-from models import EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus
-from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text
+from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload
+from models import EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel
+from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images
 from datetime import timedelta
 from bson import ObjectId
 from gridfs import GridFS
@@ -14,6 +14,10 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.lib import colors 
 from reportlab.lib.pagesizes import letter
 import io ,os
+import io ,os
+from google.cloud import storage
+import aiohttp
+
 
 def get_gridfs():
     return fs
@@ -120,41 +124,47 @@ def update_hr_vacancy_status(vacancy_id, status_data, current_user):
     collection_add_vacancy.update_one({"vacancy_id": vacancy_id}, {"$set": {"status": status_data.new_status}})
     return {"message": f"Vacancy {vacancy_id} updated successfully"}
 
-async def extract_bill_entity(image):
-    if image is None:
-        return {"error": "No image provided"}
+async def upload_bills(file: UploadFile):
+    try:
+        allowed_extensions = {'png', 'jpg', 'jpeg'}
+        file_extension = file.filename.split('.')[-1]
+        if file_extension.lower() not in allowed_extensions:
+            raise HTTPException(status_code=400, detail="Only PNG and JPG files are allowed.")
+
+        bucket_name = "pdf_save"
+        credentials_path = "D:/json key/t.json"
+        client = storage.Client.from_service_account_json(credentials_path)
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(file.filename)
+        blob.upload_from_string(await file.read(), content_type=file.content_type)
+
+        image_url = f"https://storage.googleapis.com/{bucket_name}/{file.filename}"
+        file_doc = FileModel(image_url=image_url)
+        
+        collection_bill_upload.insert_one(file_doc.dict())
+
+        extracted_text = await extract_text_from_images([file_doc.dict()])
+        
+        billtext = extracted_text[0]["extracted_text"]
+         
+        bill_entities = await extract_bill_entity(image_url, billtext)
+
+        return {"message": "File uploaded successfully","file_url": image_url, "billtext": billtext, "bill_entities": bill_entities}
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to upload file. Please try again.")
+
+async def extract_bill_entity(image_url, text):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(image_url) as response:
+            if response.status != 200:
+                return {"error": "Failed to download image"}
+            image_content = await response.read()
+            
     with open("invoiceimage.jpg", "wb") as temp_file:
-        temp_file.write(await image.read())
-    text = """INVOICE
+        temp_file.write(image_content)
 
-Company Name
-1234 56th Street S.W.
-City, Country, 12345
-Phone: (123) 456-7890
-Fax: (123) 456-7890
-
-Invoice Date: 01/02/2019
-Invoice #: 123456
-Customer Code: 789
-
-BILL TO:
-Company Name
-1234 56th Street S.W.
-City, Country, 12345
-Phone: (123) 456-7890
-Fax: (123) 456-7890
-
-Description     Amount
-Service appointment     $147.00
-Parts and labor $72.50
-
-Subtotal:       $219.50
-Tax Rate:       5.017 %
-Tax:    $10.98
-TOTAL DUE:      $230.48
-
-PAID"""
-    return (extract_entities_from_text(text))
+    return extract_entities_from_text(text)
 
 def create_new_bill(request_data, current_user):
     last_bill = collection_bills.find_one(sort=[("_id", -1)])
