@@ -125,6 +125,7 @@ def update_hr_vacancy_status(vacancy_id, status_data, current_user):
     return {"message": f"Vacancy {vacancy_id} updated successfully"}
 
 async def upload_bills(file: UploadFile):
+    global global_image_url
     try:
         allowed_extensions = {'png', 'jpg', 'jpeg'}
         file_extension = file.filename.split('.')[-1]
@@ -140,7 +141,8 @@ async def upload_bills(file: UploadFile):
 
         image_url = f"https://storage.googleapis.com/{bucket_name}/{file.filename}"
         file_doc = FileModel(image_url=image_url)
-        
+        global_image_url = image_url
+
         collection_bill_upload.insert_one(file_doc.dict())
 
         extracted_text = await extract_text_from_images([file_doc.dict()])
@@ -149,6 +151,7 @@ async def upload_bills(file: UploadFile):
          
         bill_entities = await extract_bill_entity(image_url, billtext)
 
+     
         return {"message": "File uploaded successfully","file_url": image_url, "billtext": billtext, "bill_entities": bill_entities}
     except Exception as e:
         print(e)
@@ -167,6 +170,7 @@ async def extract_bill_entity(image_url, text):
     return extract_entities_from_text(text)
 
 def create_new_bill(request_data, current_user):
+    global global_image_url
     last_bill = collection_bills.find_one(sort=[("_id", -1)])
     last_id = last_bill["bill_id"] if last_bill else "B000"
     last_seq = int(last_id[1:])
@@ -182,7 +186,8 @@ def create_new_bill(request_data, current_user):
         "Date": request_data.Date,
         "status": "pending",
         "submitdate": request_data.submitdate,
-        "invoice_number": request_data.invoice_number
+        "invoice_number": request_data.invoice_number,
+        "image_url": global_image_url
     }
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=letter)
