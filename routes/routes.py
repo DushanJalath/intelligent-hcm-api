@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.responses import JSONResponse
 from datetime import timedelta
 from models import EmpTimeRep, EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel
 from utils import get_current_user
@@ -7,6 +8,8 @@ from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from gridfs import GridFS
 from bson.objectid import ObjectId
 from gridfs import GridFS
+from typing import List
+from database import collection_bills
 from services import (
     login_user,
     refresh_tokens,
@@ -29,7 +32,8 @@ from services import (
     get_gridfs,
     empSubmitForm,
     empTimeReport,
-    upload_bills
+    upload_bills,
+    get_bill_details
 )
 
 router = APIRouter()
@@ -72,6 +76,7 @@ def get_hr_vacancies(current_user: User = Depends(get_current_user)):
 def update_hr_vacancy(vacancy_id: str, status_data: UpdateVacancyStatus, current_user: User = Depends(get_current_user)):
     return update_hr_vacancy_status(vacancy_id, status_data, current_user)
 
+
 @router.post("/upload-bill/")
 async def upload_bill_route(file: UploadFile = File(...),current_user: User = Depends(get_current_user)):
     return await upload_bills(file)
@@ -96,6 +101,12 @@ def update_hr_bill(bill_id: str, status_data: UpdateVacancyStatus, current_user:
 @router.get("/get_bill_pdf/{bill_id}")
 def get_billpdf(bill_id: str,current_user: User = Depends(get_current_user)):
     return get_bill_pdf(bill_id,current_user)
+
+
+@router.get("/bill-details")
+async def get_bill_details_route(current_user_email: str = Depends(get_current_user)):
+    bill_details = await get_bill_details(collection_bills, current_user_email["user_email"])
+    return JSONResponse(content={"bill_details": bill_details}, status_code=200)
 
 @router.post("/create_candidate")
 def create_candidate(request_data: Candidate):

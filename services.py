@@ -3,6 +3,8 @@ from database import collection_emp_time_rep, collection_user, collection_add_va
 from models import EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel
 from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images
 from datetime import timedelta
+from typing import List
+from pymongo.collection import Collection
 from bson import ObjectId
 from gridfs import GridFS
 from fastapi import HTTPException, UploadFile, File, Response
@@ -253,6 +255,27 @@ def update_hr_bill_status(bill_id, status_data, current_user):
         raise HTTPException(status_code=404, detail="Bill not found")
     collection_bills.update_one({"bill_id": bill_id}, {"$set": {"status": status_data.new_status}})
     return {"message": f"Bill {bill_id} updated successfully"}
+
+
+async def get_bill_details(collection_bills: Collection, user_email: str) -> List[dict]:
+    try:
+        bills = collection_bills.find({"user_email": user_email})
+        bill_details = []
+        for bill in bills:
+            bill_details.append({
+                "category": bill.get("category"),
+                "status": bill.get("status"),
+                "submitdate": bill.get("submitdate"),
+                "image_url": bill.get("image_url"),
+                "invoice_number": bill.get("invoice_number"),
+                "total_amount": bill.get("total_amount"),
+            })
+        return bill_details
+    except Exception as e:
+        # Consider logging the error instead of printing it
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to retrieve bill details")
+
 
 def create_new_candidate(request_data):
     last_candidate = collection_new_candidate.find_one(sort=[("_id", -1)])
