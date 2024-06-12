@@ -9,6 +9,9 @@ from config import SECRET_KEY, ALGORITHM
 from database import collection_user
 from fastapi.security import OAuth2PasswordBearer
 import requests
+import PIL.Image
+import google.generativeai as genai
+from io import BytesIO
 
 
 def create_access_token(data: dict, expires_delta: timedelta):
@@ -131,4 +134,50 @@ def extract_entities_from_text(billtext):
     "totalamount": res['results']['totalpayableamount']
     }
     return(data)
+
+
+async def fetch_and_extract_text(item):
+    bill_type = item.get("bill_type")
+    image_url = item.get("image_url")
+
+    if not image_url:
+        return "No image URL found."
+
+    response = requests.get(image_url)
+    img = PIL.Image.open(BytesIO(response.content))
+
+    API_KEY = "AIzaSyDVVsp4j5iewM7hMw_h6m8oWFOIz0Fxsao"
+    safety_settings = [
+        {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+        {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+        {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+        {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"}
+    ]
+
+     
+    genai.configure(api_key=API_KEY)
+    model = genai.GenerativeModel("gemini-pro-vision")
+
+    response = model.generate_content([
+        # "this is a bill. i need text about customer name, customer address, total amount, billing details and dates, total amount, date, receipt id, organization name,invoice number. extract that text and can you give output as paragraph.",
+        # img
+         "this is a bill. i need extract about customer name, customer address, total amount, billing dates, total amount, receipt id, organization name,invoice number.If you can't extract all the datas try to get invoice number,dates and customer name",
+        img
+    ], safety_settings=safety_settings, stream=True)
+
+    try:
+        response.resolve()
+        extracted_text = response.text if len(response.text.split("\n")) > 1 else "No text extracted."
+    except Exception as e:
+        extracted_text = "Error during text extraction. Please try it Manually."
+
+    return extracted_text
+
+async def extract_text_from_images(images):
+    results = []
+    for image_data in images:
+        extracted_text = await fetch_and_extract_text(image_data)
+        results.append({"bill_type": image_data.get("bill_type"), "extracted_text": extracted_text})
+
+    return results
 

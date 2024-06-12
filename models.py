@@ -102,3 +102,6 @@ class EmpTimeRep(BaseModel):
     project_type:str
     totalWorkHours:int
 
+class FileModel(BaseModel):  
+    image_url: str
+
