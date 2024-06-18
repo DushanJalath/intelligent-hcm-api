@@ -105,3 +105,5 @@ class EmpTimeRep(BaseModel):
 class FileModel(BaseModel):  
     image_url: str
 
+class UserMessage(BaseModel):
+    message: str
