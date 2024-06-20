@@ -78,10 +78,12 @@ class Parsed_Candidates(BaseModel):
 class Interview(BaseModel):
     date:str
     time:str
-    result:str
+    result:str #pending or confrim or selected or rejected
     venue:str
     i_id:str
+    candidate_id:str
     interviewer_id:str
+    confirmation_date:str
 
 class PredictionRequest(BaseModel):
     date: str
