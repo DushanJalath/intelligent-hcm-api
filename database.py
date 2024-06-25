@@ -15,7 +15,11 @@ collection_bill_upload = database["BillUpload"]
 collection_new_candidate = database["new_candidates"]
 collection_emp_vac_submit=database["empVacSubmit"]
 collection_emp_time_rep=database["empTimeReport"]
-
 collection_candidate_pdf = database["candidate_pdf"]
+collection_leaves=database["leaves"]
+collection_remaining_leaves=database["remaining_leaves"]
+collection_working_hours=database["working_hours"]
+collection_interviews=database["interviews"]
+
 
 fs = GridFS(database,collection="candidate_pdfs")
