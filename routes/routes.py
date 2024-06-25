@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Response
+from fastapi import APIRouter, Depends, HTTPException,Request,File, UploadFile,Form,Response
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse,RedirectResponse
 from datetime import timedelta
-from models import EmpTimeRep, EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount
+from models import EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,EmployeeLeave,Interview,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount
 from utils import get_current_user
 from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from gridfs import GridFS
@@ -51,7 +51,19 @@ from services import (
     get_employee_leave_count,
     get_user_leave_report,
     generate_pdf
+    parse_cv_and_store,
+    create_new_leave,
+    get_leave_service,
+    get_remaining_leaves_service,
+    get_ot_data_employees,
+    get_ot_data_manager,
+    add_interview_service,
+    update_candidate_response,
+    get_interviews_service,
+    fetch_interviewer_email_details
 )
+from rag import run_conversation
+
 
 router = APIRouter()
 
@@ -153,6 +165,7 @@ async def empSubmit(form:EmpSubmitForm):
 async def empTimeRep(data:EmpTimeRep):
     return empTimeReport(data)
 
+
 @router.get("/current-user-details")
 async def get_current_user_details(current_user_email: str = Depends(get_current_user)):
     user_details = await get_user_details(collection_user, current_user_email["user_email"])
@@ -253,5 +266,75 @@ async def get_manager_leave_request(current_user_details: dict = Depends(get_cur
 #     return pass_manager_leave_count(current_user_details)
 
 
+
+@router.post("/get_response")
+async def get_response(request: UserMessage):
+    response = run_conversation(request.message)
+    return JSONResponse({"response": response})
+
+@router.post("/parse_cv/{vacancy_id}")
+async def parse_cv(c_id: str, fs: GridFS = Depends(get_gridfs),job_description_json: dict = None):
+    if job_description_json is None:
+        job_description_json = {}
+    try:
+        result, matching_score = parse_cv_and_store(c_id, fs)
+        if result == "Success":
+            return {"message": "CV parsed successfully", "matching_score": matching_score}
+        else:
+            return {"error": result}
+    except Exception as e:
+        return {"error": str(e)}
+    
+@router.post("/add_emp_leave")
+async def add_leaves(request_data: EmployeeLeave, current_user: User = Depends(get_current_user)):
+    response=create_new_leave(request_data, current_user)
+    return response
+
+@router.get("/get_leaves")
+async def get_leavse(current_user: User = Depends(get_current_user)):
+    return get_leave_service(current_user)
+
+@router.get("/get_remaining_leaves")
+async def get_remaining_leavse(current_user: User = Depends(get_current_user)):
+    return get_remaining_leaves_service(current_user)
+
+@router.get("/get_ot_data_emp")
+async def get_ot_data_emp(current_user:User=Depends(get_current_user)):
+    return get_ot_data_employees(current_user)
+
+@router.get("/get_ot_data_man")
+async def get_ot_data_man(current_user:User=Depends(get_current_user)):
+    return get_ot_data_manager(current_user)
+
+
+@router.post("/add_interview")
+async def add_interview(interview_data:Interview,current_user:User=Depends(get_current_user)):
+    return add_interview_service(interview_data,current_user)
+
+@router.get("/candidate_response")
+async def get_response(id: str, response: str):
+    # Process the response and the unique identifier
+    if response == "yes":
+        update_candidate_response(id)
+        #interviewer_details=fetch_interviewer_email_details(id)
+        #if interviewer_details:
+            #send_interviewer_email(interviewer_details)
+
+    return RedirectResponse(url="/response_success")
+
+    
+@router.get("/response_success")
+async def response_success():
+    return "Your response has been sent successfully!"
+
+@router.get("/get_interviews")
+def get_interviews(current_user: User = Depends(get_current_user)):
+    return get_interviews_service(current_user)
+
+@router.get("/interviewer_email_details")
+async def interviewer_email_details(c_id:str,request:Request,current_user: User = Depends(get_current_user)):
+    base_url=request.base_url
+    details= await fetch_interviewer_email_details(c_id,current_user,base_url)
+    return details
 
 

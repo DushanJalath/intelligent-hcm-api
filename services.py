@@ -1,5 +1,5 @@
 # services.py
-from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_add_leave_request
+from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request
 from models import EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel
 from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images,get_current_user
 from datetime import timedelta
@@ -17,6 +17,8 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
+from cv_parser import process_resume
+import PyPDF2
 import io ,os
 import io ,os
 from google.cloud import storage
@@ -49,7 +51,7 @@ def refresh_tokens(refresh_token: str):
     return {"access_token": new_access_token, "token_type": "bearer"}
 
 def create_new_user(user:User):
-    existing_user = collection_user.find_one({"email": user.user_email})
+    existing_user = collection_user.find_one({"user_email": user.user_email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     hashed_password = hash_password(user.user_pw)
@@ -722,3 +724,277 @@ def generate_pdf(leave_reports):
     
     buffer.seek(0)
     return buffer
+
+def create_new_leave(request_data, current_user):
+    existing_leave= collection_leaves.find_one({
+        "user_email":request_data.user_email,
+        "start_date":request_data.start_date,
+        "end_date":request_data.end_date
+    })
+    if existing_leave:
+         raise HTTPException(status_code=400, detail="Leave already applied")
+    try:
+        last_leave = collection_leaves.find_one(sort=[("_id", -1)])
+        last_id = last_leave["leave_id"] if last_leave else "B000"
+        last_seq = int(last_id[1:])
+        new_seq = last_seq + 1
+        leave_id = f"L{new_seq:03d}"
+        data = {
+            "leave_id": leave_id,
+            "user_type": current_user.get('user_type'),
+            "user_email": current_user.get("user_email"),
+            "user_email":request_data.user_email,
+            "name": request_data.name,
+            "start_date": request_data.start_date,
+            "end_date": request_data.end_date,
+            "leave_type": request_data.leave_type,
+            "status": "pending"
+        }
+
+        result= collection_leaves.insert_one(data)
+        return {"message": "Leave Inserted successfully", "leave_id": leave_id}
+      
+    except Exception as e:
+        print(f"Error: {e}")  # Debugging print statement
+        {"message": f"An error occurred while inserting the leave: {str(e)}"}
+
+def get_leave_service(current_user):
+    current_email=current_user.get("user_email")
+    excluded_statuses = ["approved", "rejected"]
+    leaves=[]
+    try:
+        for leave in collection_leaves.find({"status": {"$nin": excluded_statuses}}):
+            leave_data={
+                "leave_id": leave.get("leave_id",""),
+                "name": leave.get("name", ""),
+                "emp_id": leave.get("emp_id", ""),
+                "start_date": leave.get("start_date", ""),
+                "end_date": leave.get("end_date", ""),
+                "leave_type": leave.get("leave_type", ""),
+                "leave_status": leave.get("leave_status", "Pending")
+            }
+            leaves.append(leave_data)
+        if not leaves:  
+            raise HTTPException(status_code=404, detail="Employee leave data not found")    
+            
+        else:
+            return leaves
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+    
+def get_remaining_leaves_service(current_user):
+    email = current_user.get("user_email")
+    remaining_leaves = collection_remaining_leaves.find_one({"user_email": email})
+
+    try:
+        if remaining_leaves:
+            # Ensure all necessary keys exist in the document
+            if all(key in remaining_leaves for key in ["total_sick_leave", "sick_leave_taken", "total_vacation_leave", "vacation_leave_taken", "total_personal_leave", "personal_leave_taken"]):
+                # Calculate remaining leaves
+                remaining_sick_leave = remaining_leaves["total_sick_leave"] - remaining_leaves["sick_leave_taken"]
+                remaining_vacation_leave = remaining_leaves["total_vacation_leave"] - remaining_leaves["vacation_leave_taken"]
+                remaining_personal_leave = remaining_leaves["total_personal_leave"] - remaining_leaves["personal_leave_taken"]
+
+                # Update remaining leaves in the database
+                collection_leaves.update_one(
+                    {"user_email": email},
+                    {
+                        "$set": {
+                            "sick_leave_remaining": remaining_sick_leave,
+                            "vacation_leave_remaining": remaining_vacation_leave,
+                            "personal_leave_remaining": remaining_personal_leave
+                        }
+                    }
+                )
+
+                return {
+                    "sick_leave_remaining": remaining_sick_leave,
+                    "vacation_leave_remaining": remaining_vacation_leave,
+                    "personal_leave_remaining": remaining_personal_leave
+                }
+            else:
+                raise HTTPException(status_code=500, detail="Leave data is incomplete")
+        else:
+            # Return default values if data not found
+            return {
+                "sick_leave_remaining": 0,
+                "vacation_leave_remaining": 0,
+                "personal_leave_remaining": 0
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    
+    
+def get_ot_data_employees(current_user):
+    if current_user.get("user_type") in ["HR"]:
+        try:
+            ot_chart_data_list_emp=[]
+            for ot_data in collection_working_hours.find():
+                email=ot_data.get("u_email")
+                totOT=ot_data.get("totalOT")
+                fixedOT=ot_data.get("fixedOT")
+                ot_chart_data={
+                    "name":" ",
+                    "role":" ",
+                    "completed":totOT,
+                    "remaining":fixedOT-totOT
+                }
+
+                user_data = collection_user.find_one({"user_email": email})
+                if user_data and user_data.get("user_type")=="Employee":
+                    ot_chart_data["name"] = user_data.get("name", " ")
+                    ot_chart_data["role"] = user_data.get("user_role", " ")
+                    ot_chart_data_list_emp.append(ot_chart_data)
+            return(ot_chart_data_list_emp)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    else:
+        raise HTTPException(status_code=403, detail="User is not authorized to view this data.")
+
+
+def get_ot_data_manager(current_user):
+    if current_user.get("user_type") in ["HR"]:
+        try:
+            ot_chart_data_list_man=[]
+            for ot_data in collection_working_hours.find():
+                email=ot_data.get("u_email")
+                totOT=ot_data.get("totalOT")
+                fixedOT=ot_data.get("fixedOT")
+                ot_chart_data={
+                    "name":" ",
+                    "role":" ",
+                    "completed":totOT,
+                    "remaining":fixedOT-totOT
+                }
+
+                user_data = collection_user.find_one({"user_email": email})
+                if user_data and user_data.get("user_type")=="Manager":
+                    ot_chart_data["name"] = user_data.get("name", " ")
+                    ot_chart_data["role"] = user_data.get("user_role", " ")
+                    ot_chart_data_list_man.append(ot_chart_data)
+            return(ot_chart_data_list_man)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    else:
+        raise HTTPException(status_code=403, detail="User is not authorized to view this data.")
+    
+
+
+
+def parse_cv_and_store(c_id,fs):
+    try:
+        candidate=collection_new_candidate.find_one({"c_id":c_id})
+        v_id=candidate.get("vacancy_id")
+        cv_id=candidate.get("cv")
+        vacancy=collection_add_vacancy.find_one({"vacancy_id":v_id})
+        jd=vacancy.get("job_description")
+
+        status,matching_score=process_resume(cv_id,fs,jd)
+
+        if status != "Success":
+            return {"error": status}
+        collection_new_candidate.update_one({"c_id": c_id}, {"$set": {"score": float(matching_score)}})
+        return "Success", matching_score
+        
+    except FileNotFoundError:
+        return f"File not found: {cv_id}", None
+    except PyPDF2.errors.PdfReadError:
+        return f"Error reading PDF: {cv_id}", None
+    except Exception as e:
+        return f"An error occurred while processing {cv_id}: {e}", None
+    
+
+def add_interview_service(interview_data,current_user):
+    if current_user.get("user_type")=="HR":
+        try:
+            last_interview = collection_interviews.find_one(sort=[("_id", -1)])
+            last_id = last_interview["i_id"] if last_interview else "I000"
+            last_seq = int(last_id[1:])
+            new_seq = last_seq + 1
+            i_id = f"I{new_seq:03d}"
+            data={
+                "i_id":i_id,
+                "c_id":interview_data.c_id,
+                "date":interview_data.date,
+                "time":interview_data.time,
+                "venue":interview_data.venue,
+                "interviewer_id":interview_data.interviewer_id,
+                "confirmed_date":interview_data.confirmed_date,
+                "result":"pending"
+            }
+            collection_interviews.insert_one(data)
+            return {"message": "Interview created successfully"}
+        except Exception as e:
+            print(f"Error: {e}")  
+            {"message": f"An error occurred while inserting the leave: {str(e)}"}
+
+def update_candidate_response(c_id):
+    update_result=collection_interviews.update_one({"c_id":c_id},{"$set": {"result": "confirmed"}})
+    if update_result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Interview not found")
+    else:
+        return{"message":"Interview status updated successfully"}
+    
+def get_interviews_service(current_user):
+    if current_user.get('user_type') != "HR":
+        raise HTTPException(status_code=403, detail="Unauthorized, only HR can view candidates")
+    excluded_statuses = ["approved"]
+    interviews = []
+    for interview in collection_interviews.find({"status": {"$nin": excluded_statuses}}).sort("score",-1):
+        interview_data = {
+            "i_id": interview["i_id"],
+            "c_id": interview["c_id"],
+            "date": interview["date"],
+            "time": interview["time"],
+            "venue":interview["venue"],
+            "interviewer_id": interview["interviewer_id"],
+            "confirmed_date":interview["confirmed_date"],
+            "result":interview["result"]  
+    
+        }
+        interviews.append(interview_data)
+    return interviews
+
+async def download_candidate_cv_interview(cv_id, fs,current_user):
+    if current_user.get('user_type') not in ["HR", "Manager"]:
+        raise HTTPException(status_code=403, detail="Unauthorized, only HR can download CVs")
+    try:
+        # Retrieve the file from GridFS
+        file = fs.get(ObjectId(cv_id))
+        if file is None:
+            raise HTTPException(status_code=404, detail="CV not found")
+        # Return the file content as a StreamingResponse with the original filename
+        return StreamingResponse(file, media_type="application/octet-stream", headers={"Content-Disposition": f"attachment; filename={file.filename}"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+async def fetch_interviewer_email_details(c_id: str, current_user, base_url: str):
+    interview = collection_interviews.find_one({"c_id": c_id})
+    if interview is None:
+        raise HTTPException(status_code=404, detail="Interview not found")
+    
+    email = interview.get("interviewer_id")
+    interviewer = collection_user.find_one({"user_email": email})
+    if interviewer is None:
+        raise HTTPException(status_code=404, detail="Interviewer not found")
+    
+    find_cv=collection_new_candidate.find_one({"c_id":c_id})
+    if find_cv is None:
+        raise HTTPException(status_code=404, detail="Candidate CV not found")
+    
+    cv_id=find_cv.get("cv")
+   
+    details = {
+        "email": email,
+        "name": interviewer.get("user_name"),
+        "date": interview.get("date"),
+        "time": interview.get("time"),
+        "venue": interview.get("venue"),
+        "cv": f"{base_url}/download_cv/{cv_id}"
+    }
+
+    return details
+
+
+
