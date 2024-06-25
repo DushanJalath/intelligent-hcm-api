@@ -121,5 +121,29 @@ class EmpTimeRep(BaseModel):
 class FileModel(BaseModel):  
     image_url: str
 
+      
+class LeaveRequest(BaseModel):
+    leaveType: str
+    startDate: str
+    dayCount:  str
+    submitdate:str
+    submitdatetime:str
+
+class Update_leave_request(BaseModel):
+    new_status: str
+
+class EmployeeLeaveCount(BaseModel):
+    submitdate: str
+    sickLeaveCount: str
+    casualLeaveCount: str
+    annualLeaveCount:  str
+
+class ManagerLeaveCount(BaseModel):
+    submitdate:str
+    sickLeaveCount: str
+    casualLeaveCount: str
+    annualLeaveCount:  str
+
 class UserMessage(BaseModel):
     message: str
+
