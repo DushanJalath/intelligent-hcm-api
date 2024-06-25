@@ -46,7 +46,7 @@ def refresh_tokens(refresh_token: str):
     return {"access_token": new_access_token, "token_type": "bearer"}
 
 def create_new_user(user:User):
-    existing_user = collection_user.find_one({"email": user.user_email})
+    existing_user = collection_user.find_one({"user_email": user.user_email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     hashed_password = hash_password(user.user_pw)
