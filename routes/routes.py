@@ -9,7 +9,7 @@ from gridfs import GridFS
 from bson.objectid import ObjectId
 from gridfs import GridFS
 from typing import List
-from database import collection_bills
+from database import collection_bills,collection_user
 from services import (
     login_user,
     refresh_tokens,
