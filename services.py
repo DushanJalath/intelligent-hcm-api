@@ -1,13 +1,14 @@
 # services.py
+
 from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request
 from models import EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel
-from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images,get_current_user
+from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images
 from datetime import timedelta
 from typing import List
 from pymongo.collection import Collection
 from bson import ObjectId
 from gridfs import GridFS
-from fastapi import HTTPException, UploadFile, File, Response,Depends
+from fastapi import HTTPException, UploadFile, File, Response
 from fastapi.responses import StreamingResponse
 from config import REFRESH_TOKEN_EXPIRE_DAYS,ACCESS_TOKEN_EXPIRE_MINUTES
 from reportlab.pdfgen import canvas 
@@ -23,9 +24,6 @@ import io ,os
 import io ,os
 from google.cloud import storage
 import aiohttp
-from database import collection_add_employee_leave_count,collection_add_manager_leave_count,collection_add_leave_request
-from pymongo import MongoClient, DESCENDING
-from io import BytesIO
 
 
 def get_gridfs():
@@ -995,6 +993,5 @@ async def fetch_interviewer_email_details(c_id: str, current_user, base_url: str
     }
 
     return details
-
 
 
