@@ -133,6 +133,24 @@ def update_hr_vacancy_status(vacancy_id, status_data, current_user):
     collection_add_vacancy.update_one({"vacancy_id": vacancy_id}, {"$set": {"status": status_data.new_status}})
     return {"message": f"Vacancy {vacancy_id} updated successfully"}
 
+def publish_vacancy_service(vacancy_id: str, current_user: dict):
+    vacancy = collection_add_vacancy.find_one({"vacancy_id": vacancy_id})
+    if not vacancy:
+        raise HTTPException(status_code=404, detail="Vacancy not found")
+
+    if current_user.get('user_type') != 'HR':  # Ensure only HR can publish
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    if vacancy.get('status') != 'approved':
+        raise HTTPException(status_code=400, detail="Vacancy not approved yet or rejected")
+
+    collection_add_vacancy.update_one(
+        {"vacancy_id": vacancy_id},
+        {"$set": {"publish_status": "approved"}}
+    )
+
+    return {"message": "Vacancy published successfully"}
+
 async def upload_bills(file: UploadFile):
     global global_image_url
     try:
@@ -312,6 +330,7 @@ def get_candidates_service(current_user):
             "c_id": candidate["c_id"],
             "email": candidate["email"],
             "name": candidate["name"],
+            "score": candidate["score"],
             "cv": candidate["cv"],
             "vacancy_id": candidate["vacancy_id"],
         }

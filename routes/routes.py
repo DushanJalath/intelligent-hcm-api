@@ -18,6 +18,7 @@ from services import (
     create_new_vacancy,
     get_all_vacancies,
     get_hr_vacancies_service,
+    publish_vacancy_service,
     update_hr_vacancy_status,
     create_new_bill,
     get_user_bill_status,
@@ -93,6 +94,9 @@ def get_hr_vacancies(current_user: User = Depends(get_current_user)):
 def update_hr_vacancy(vacancy_id: str, status_data: UpdateVacancyStatus, current_user: User = Depends(get_current_user)):
     return update_hr_vacancy_status(vacancy_id, status_data, current_user)
 
+@router.post("/publish_vacancy/{vacancy_id}")
+def publish_vacancy(vacancy_id: str, current_user: dict = Depends(get_current_user)):
+    return publish_vacancy_service(vacancy_id, current_user)
 
 @router.post("/upload-bill/")
 async def upload_bill_route(file: UploadFile = File(...),current_user: User = Depends(get_current_user)):
