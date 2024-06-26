@@ -71,7 +71,7 @@ def login_user_manual(user_login, ACCESS_TOKEN_EXPIRE_MINUTES):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(data={"email": user_login.email}, expires_delta=access_token_expires)
-    return {"access_token": access_token, "type": existing_user.get("user_type")}
+    return {"access_token": access_token, "type": existing_user.get("user_type"), "email": existing_user.get("user_email")}
 
 def create_new_vacancy(request_data, current_user):
     last_vacancy = collection_add_vacancy.find_one(sort=[("_id", -1)])
