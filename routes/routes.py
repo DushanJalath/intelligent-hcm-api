@@ -51,7 +51,11 @@ from services import (
     create_employee_leave_count,
     get_employee_leave_count,
     get_user_leave_report,
-    generate_pdf
+    generate_pdf,
+    create_temp_job_vacancies_service,
+    get_file_service, 
+    get_all_job_vacancies_service,
+    create_candidate_cv_service
 )
 
 router = APIRouter()
@@ -257,5 +261,32 @@ async def get_manager_leave_request(current_user_details: dict = Depends(get_cur
 #     return pass_manager_leave_count(current_user_details)
 
 
+############# Create Temp Vacancy for Testing ###########
+@router.post("/Create-Temp-Job-Vacancies/")
+async def create_temp_job_vacancies(
+    job_title: str = Form(...), 
+    job_type: str = Form(...), 
+    work_mode: str = Form(...),
+    file: UploadFile = File(...)
+):
+    return await create_temp_job_vacancies_service(job_title, job_type, work_mode, file)
 
 
+@router.get("/file/{file_id}")
+async def get_file(file_id: str):
+    return await get_file_service(file_id)
+
+@router.get("/job-vacancies/")
+async def get_all_job_vacancies():
+    return await get_all_job_vacancies_service()
+
+#### Candidate Upload CV #####
+@router.post("/Candidate-CV-Upload/")
+async def create_candidate_cv(
+    vacancy_id: str = Form(...),
+    name: str = Form(...), 
+    email: str = Form(...), 
+    contact_number: str = Form(...),
+    cv: UploadFile = File(...)
+):
+    return await create_candidate_cv_service(vacancy_id, name, email, contact_number, cv)

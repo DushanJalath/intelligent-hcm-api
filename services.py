@@ -1,7 +1,7 @@
 # services.py
 
-from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request,collection_add_employee_leave_count,collection_add_manager_leave_count
-from models import EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel
+from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request,collection_add_employee_leave_count,collection_add_manager_leave_count,collection_job_vacancies,grid_fs,collection_job_applications
+from models import EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons
 from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images,get_current_user
 from datetime import timedelta
 from typing import List
@@ -26,6 +26,7 @@ from google.cloud import storage
 import aiohttp
 from pymongo import MongoClient, DESCENDING
 from io import BytesIO
+from starlette.responses import JSONResponse,StreamingResponse
 
 
 def get_gridfs():
@@ -1016,3 +1017,101 @@ async def fetch_interviewer_email_details(c_id: str, current_user, base_url: str
     return details
 
 
+### Create Temp Vacancy for Testing ###
+async def create_temp_job_vacancies_service(job_title: str, job_type: str, work_mode: str, file) -> JSONResponse:
+    try:
+        # Generate vacancy_id
+        last_vacancy = collection_job_vacancies.find_one(sort=[("_id", -1)])
+        last_id = last_vacancy["vacancy_id"] if last_vacancy else "V000"
+        last_seq = int(last_id[1:])
+        new_seq = last_seq + 1
+        vacancy_id = f"V{new_seq:03d}"
+        
+        # Upload file to GridFS
+        file_id = grid_fs.put(file.file, filename=file.filename, content_type=file.content_type)
+        
+        # Save metadata in MongoDB
+        job_vacancy = JobVacancy(
+            vacancy_id=vacancy_id,
+            job_title=job_title,
+            job_type=job_type,
+            work_mode=work_mode,
+            pdf_id=str(file_id),  # Store the file_id
+        )
+        collection_job_vacancies.insert_one(job_vacancy.dict())
+        
+        return JSONResponse(
+            content={"message": "Job vacancy created successfully", "job_vacancy": job_vacancy.dict()},
+            status_code=200
+        )
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to create job vacancy. Please try again.")
+
+
+### Get job Requirments ###
+async def get_file_service(file_id: str) -> StreamingResponse:
+    try:
+        file = grid_fs.get(ObjectId(file_id))
+        return StreamingResponse(file, media_type=file.content_type, headers={"Content-Disposition": f"attachment; filename={file.filename}"})
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=404, detail="File not found.")
+
+
+### Get vacancy details ###
+async def get_all_job_vacancies_service() -> list:
+    try:
+        job_vacancies = collection_job_vacancies.find()
+        vacancies_list = []
+        for job_vacancy in job_vacancies:
+            vacancies_list.append({
+                "job_title": job_vacancy["job_title"],
+                "work_mode": job_vacancy["work_mode"],
+                "job_type": job_vacancy["job_type"],
+                "pdf_id": job_vacancy["pdf_id"],
+                "vacancy_id": job_vacancy["vacancy_id"]
+            })
+        return vacancies_list
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to retrieve job vacancies details")
+        
+
+    
+#### Candidate Upload CV #####
+async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, contact_number: str, cv) -> JSONResponse:
+    try:
+        # Generate c_id
+        last_cv = collection_job_applications.find_one(sort=[("_id", -1)])
+        last_id = last_cv["c_id"] if last_cv else "C000"
+        last_seq = int(last_id[1:])
+        new_seq = last_seq + 1
+        c_id = f"C{new_seq:03d}"
+
+        # Fetch job details based on vacancy_id
+        job_details = collection_job_vacancies.find_one({"vacancy_id": vacancy_id})
+        if not job_details:
+            raise HTTPException(status_code=404, detail="Vacancy ID not found")
+
+        # Upload CV to GridFS
+        cv_id = grid_fs.put(cv.file, filename=cv.filename, content_type=cv.content_type)
+
+        # Save application details in MongoDB
+        job_application = JobApplicatons(
+            c_id=c_id,
+            name=name,
+            email=email,
+            contact_number=contact_number,
+            cv=str(cv_id),  # Store the CV file's ObjectId
+            job_title=job_details.get("job_title"),
+            job_type=job_details.get("job_type"),
+            work_mode=job_details.get("work_mode"),
+        )
+        collection_job_applications.insert_one(job_application.dict())
+
+        return JSONResponse(content={"message": "Job application created successfully", "job_application": job_application.dict()},
+                            status_code=200)
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to create job application. Please try again.")
