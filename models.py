@@ -1,6 +1,6 @@
 
 # models.py
-from pydantic import BaseModel
+from pydantic import BaseModel,Field
 from typing import Optional
 from datetime import datetime
 
@@ -147,3 +147,21 @@ class ManagerLeaveCount(BaseModel):
 class UserMessage(BaseModel):
     message: str
 
+
+class JobVacancy(BaseModel):
+    vacancy_id: str
+    job_title: str
+    job_type: str
+    work_mode: str
+    pdf_id: str
+
+
+class JobApplicatons(BaseModel):
+    c_id: str
+    name: str
+    email: str
+    contact_number: str
+    cv: str
+    job_title: str
+    job_type: str
+    work_mode: str

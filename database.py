@@ -26,3 +26,9 @@ collection_interviews=database["interviews"]
 
 
 fs = GridFS(database,collection="candidate_pdfs")
+
+collection_job_vacancies = database["JobVacancies"]
+
+####Uploaded CV and details#####
+collection_job_applications = database["JobApplications"]
+grid_fs = GridFS(database)
