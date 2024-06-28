@@ -2,6 +2,7 @@
 # models.py
 from pydantic import BaseModel
 from typing import Optional
+from fastapi import UploadFile, File
 
 
 class User_login(BaseModel):
@@ -13,7 +14,8 @@ class TokenRefresh(BaseModel):
     refresh_token: str
 
 class User(BaseModel):
-    name:str
+    fName:str
+    lName:str
     contact:str
     user_email:str
     address:str
@@ -99,13 +101,19 @@ class EmpSubmitForm(BaseModel):
     dob:str
 
 class EmpTimeRep(BaseModel):
-    email:str
     date:str
     project_type:str
-    totalWorkHours:int
+    totalWorkMilliSeconds:int
 
 class FileModel(BaseModel):  
     image_url: str
 
 class UserMessage(BaseModel):
     message: str
+
+class TimeReportQuery(BaseModel):
+    date: str
+
+class UserResponse(BaseModel):
+    message: str
+    user_id: str
