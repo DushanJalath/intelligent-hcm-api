@@ -402,7 +402,7 @@ def get_candidates_service(current_user):
         raise HTTPException(status_code=403, detail="Unauthorized, only HR can view candidates")
     excluded_statuses = ["approved", "rejected"]
     candidates = []
-    for candidate in collection_new_candidate.find({"status": {"$nin": excluded_statuses}}):
+    for candidate in collection_new_candidate.find({"status": {"$nin": excluded_statuses}}).sort("score", -1):
         candidate_data = {
             "c_id": candidate["c_id"],
             "email": candidate["email"],
