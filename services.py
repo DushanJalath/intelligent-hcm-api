@@ -109,7 +109,7 @@ def create_new_vacancy(request_data, current_user):
         "vacancy_id": vacancy_id,
         "user_type": current_user.get('user_type'),
         "user_email": current_user.get("user_email"),
-        "project_type": request_data.project_type,
+        "job_type": request_data.job_type,
         "pre_requisits": request_data.pre_requisits,
         "possition": request_data.possition,
         "num_of_vacancies": request_data.num_of_vacancies,
@@ -176,7 +176,7 @@ def get_all_vacancies(current_user):
     for vacancy in collection_add_vacancy.find({"user_email": current_user.get("user_email")}):
         vacancy_data = {
             "vacancy_id": vacancy["vacancy_id"],
-            "project_type": vacancy["project_type"],
+            "job_type": vacancy["job_type"],
             "possition": vacancy["possition"],
             "num_of_vacancies": vacancy["num_of_vacancies"],
             "status": vacancy["status"],
@@ -193,7 +193,7 @@ def get_hr_vacancies_service(current_user):
     for vacancy in collection_add_vacancy.find({"status": {"$nin": excluded_statuses}}):
         vacancy_data = {
             "vacancy_id": vacancy["vacancy_id"],
-            "project_type": vacancy["project_type"],
+            "job_type": vacancy["job_type"],
             "possition": vacancy["possition"],
             "num_of_vacancies": vacancy["num_of_vacancies"]
             

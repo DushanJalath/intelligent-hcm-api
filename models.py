@@ -28,7 +28,7 @@ class add_vacancy(BaseModel):
     possition: str
     pre_requisits:str
     responsibilities: str
-    project_type: str
+    job_type: str
     num_of_vacancies: int
     more_details: str
 
