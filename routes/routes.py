@@ -188,6 +188,12 @@ async def get_response(request: UserMessage):
 @router.post("/total-work-milliseconds")
 async def get_total_work_milliseconds(query: TimeReportQuery,current_user: User = Depends(get_current_user)):
     return get_total_work_time(query,current_user)
+
+
+@router.get("/user-details")
+async def getUserDetails(current_user: User = Depends(get_current_user)):
+    return get_user_details(current_user)
+
 @router.get("/current-user-details")
 async def get_current_user_details(current_user_email: str = Depends(get_current_user)):
     user_details = await get_user_details(collection_user, current_user_email["user_email"])
@@ -317,4 +323,5 @@ async def create_candidate_cv(
     cv: UploadFile = File(...)
 ):
     return await create_candidate_cv_service(vacancy_id, name, email, contact_number, cv)
+
 

@@ -1,10 +1,7 @@
 # services.py
 from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload
 from models import UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel
-from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images
-from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request,collection_add_employee_leave_count,collection_add_manager_leave_count,collection_job_vacancies,grid_fs,collection_job_applications
-from models import EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons
-from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images,get_current_user
+from utils import convert_object_id, hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images
 from datetime import timedelta
 from typing import List
 from pymongo.collection import Collection
@@ -27,9 +24,11 @@ import io ,os
 import io ,os
 from google.cloud import storage
 import aiohttp
+from bson import json_util
 from pymongo import MongoClient, DESCENDING
 from io import BytesIO
 from starlette.responses import JSONResponse,StreamingResponse
+
 
 
 def get_gridfs():
@@ -69,9 +68,11 @@ async def create_new_user(user: User, file: UploadFile) -> UserResponse:
     blob.upload_from_string(await file.read(), content_type=file.content_type)
 
     image_url = f"https://storage.googleapis.com/{bucket_name}/{file.filename}"
-    user_dict = user.dict()
-    user_dict['profile_pic_url'] = image_url
-    result =  collection_user.insert_one(user_dict)
+    hashed_password = hash_password(user.user_pw)
+    user_data = user.dict()
+    user_data["user_pw"] = hashed_password
+    user_data['profile_pic_url'] = image_url
+    result =  collection_user.insert_one(user_data)
     
     return UserResponse(message="User created successfully", user_id=str(result.inserted_id))
 
@@ -499,6 +500,15 @@ def get_total_work_time(query:TimeReportQuery,current_user):
         return {"totalTime":total_milliseconds}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+    
+def get_user_details(user):
+    result = collection_user.find_one({"user_email": user.get('user_email')})
+    if user:
+        result = convert_object_id(result)
+        return json.loads(json_util.dumps(result))
+    else:
+        raise HTTPException(status_code=404, detail="User not found")
 
 async def get_user_details(collection_user: Collection, user_email: str) -> dict:
     try:
