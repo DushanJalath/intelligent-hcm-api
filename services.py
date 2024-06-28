@@ -1,7 +1,7 @@
 # services.py
 from database import fs_pic, collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload
 from models import UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel
-from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images
+from utils import convert_object_id, hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images
 from datetime import timedelta
 from typing import List
 from pymongo.collection import Collection
@@ -19,6 +19,8 @@ import io ,os
 import io ,os
 from google.cloud import storage
 import aiohttp
+from bson import json_util
+import json
 
 
 def get_gridfs():
@@ -57,9 +59,11 @@ async def create_new_user(user: User, file: UploadFile) -> UserResponse:
     blob.upload_from_string(await file.read(), content_type=file.content_type)
 
     image_url = f"https://storage.googleapis.com/{bucket_name}/{file.filename}"
-    user_dict = user.dict()
-    user_dict['profile_pic_url'] = image_url
-    result =  collection_user.insert_one(user_dict)
+    hashed_password = hash_password(user.user_pw)
+    user_data = user.dict()
+    user_data["user_pw"] = hashed_password
+    user_data['profile_pic_url'] = image_url
+    result =  collection_user.insert_one(user_data)
     
     return UserResponse(message="User created successfully", user_id=str(result.inserted_id))
 
@@ -405,3 +409,11 @@ def get_total_work_time(query:TimeReportQuery,current_user):
         return {"totalTime":total_milliseconds}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+def get_user_details(user):
+    result = collection_user.find_one({"user_email": user.get('user_email')})
+    if user:
+        result = convert_object_id(result)
+        return json.loads(json_util.dumps(result))
+    else:
+        raise HTTPException(status_code=404, detail="User not found")

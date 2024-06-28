@@ -34,7 +34,8 @@ from services import (
     empTimeReport,
     upload_bills,
     get_bill_details,
-    get_total_work_time
+    get_total_work_time,
+    get_user_details
 )
 from rag import run_conversation
 
@@ -165,3 +166,7 @@ async def get_response(request: UserMessage):
 @router.post("/total-work-milliseconds")
 async def get_total_work_milliseconds(query: TimeReportQuery,current_user: User = Depends(get_current_user)):
     return get_total_work_time(query,current_user)
+
+@router.get("/user-details")
+async def getUserDetails(current_user: User = Depends(get_current_user)):
+    return get_user_details(current_user)
