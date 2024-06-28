@@ -33,4 +33,6 @@ collection_job_vacancies = database["JobVacancies"]
 collection_job_applications = database["JobApplications"]
 grid_fs = GridFS(database)
 
+fs = GridFS(database,collection="candidate_pdfs")
 collection_add_vacancy = database['AddVacancy']
+

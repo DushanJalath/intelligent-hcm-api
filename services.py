@@ -1,5 +1,7 @@
 # services.py
-
+from database import fs_pic, collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload
+from models import UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel
+from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images
 from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request,collection_add_employee_leave_count,collection_add_manager_leave_count,collection_job_vacancies,grid_fs,collection_job_applications
 from models import EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons
 from utils import hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images,get_current_user
@@ -52,15 +54,27 @@ def refresh_tokens(refresh_token: str):
     new_access_token = create_access_token(data={"email": email}, expires_delta=access_token_expires)
     return {"access_token": new_access_token, "token_type": "bearer"}
 
-def create_new_user(user:User):
-    existing_user = collection_user.find_one({"user_email": user.user_email})
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    hashed_password = hash_password(user.user_pw)
-    user_data = user.dict()
-    user_data["user_pw"] = hashed_password
-    inserted_user = collection_user.insert_one(user_data)
-    return {"message": "User created successfully", "user_id": str(inserted_user.inserted_id)}
+
+async def create_new_user(user: User, file: UploadFile) -> UserResponse:
+    allowed_extensions = {'png', 'jpg', 'jpeg'}
+    file_extension = file.filename.split('.')[-1]
+    if file_extension.lower() not in allowed_extensions:
+        raise HTTPException(status_code=400, detail="Only PNG and JPG files are allowed.")
+
+    bucket_name = "pdf_save"
+    credentials_path = "D:/BSc Hons. in AI/Level 2 Sem 2/CM2900 - Industry Based AI Software Project/Codes/intelligent-hcm-api/t.json"
+    client = storage.Client.from_service_account_json(credentials_path)
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(file.filename)
+    blob.upload_from_string(await file.read(), content_type=file.content_type)
+
+    image_url = f"https://storage.googleapis.com/{bucket_name}/{file.filename}"
+    user_dict = user.dict()
+    user_dict['profile_pic_url'] = image_url
+    result =  collection_user.insert_one(user_dict)
+    
+    return UserResponse(message="User created successfully", user_id=str(result.inserted_id))
+
 
 def login_user_manual(user_login, ACCESS_TOKEN_EXPIRE_MINUTES):
     existing_user = collection_user.find_one(
@@ -435,21 +449,56 @@ def download_candidate_cv(cv_id, fs, current_user):
         raise HTTPException(status_code=500, detail=str(e))
 
 def empSubmitForm(form:EmpSubmitForm):
-    existing_user = collection_user.find_one({"email": form.eMail})
+    existing_user = collection_user.find_one({"user_email": form.eMail})
     if not existing_user:
         raise HTTPException(status_code=400, detail="Invalid Email")
     form_data = form.dict()
     inserted_user = collection_emp_vac_submit.insert_one(form_data)
     return {"message": "Form Submitted successfully", "user_id": str(inserted_user.inserted_id)}
 
-def empTimeReport(timeRep:EmpTimeRep):
-    existing_user = collection_user.find_one({"email": timeRep.email})
+def empTimeReport(timeRep:EmpTimeRep,current_user):
+    existing_user = collection_user.find_one({"user_email": current_user.get("user_email")})
+    data={
+        "user_email":current_user.get("user_email"),
+        "date":timeRep.date,
+        "project_type":timeRep.project_type,
+        "totalWorkMilliSeconds":timeRep.totalWorkMilliSeconds,
+    }
     if not existing_user:
         raise HTTPException(status_code=400, detail="Invalid Email")
     form_data = timeRep.dict()
-    inserted_user = collection_emp_time_rep.insert_one(form_data)
+    inserted_user = collection_emp_time_rep.insert_one(data)
     return {"message": "Time Reported Success fully", "user_id": str(inserted_user.inserted_id)}
 
+
+def get_total_work_time(query:TimeReportQuery,current_user):
+    try:
+        # MongoDB query
+        result = collection_emp_time_rep.aggregate([
+            {
+                "$match": {
+                    "user_email": current_user.get("user_email"),
+                    "date": query.date
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "totalMilliseconds": { "$sum": "$totalWorkMilliSeconds" }
+                }
+            }
+        ])
+        
+        # Convert the result to a list and get the total milliseconds
+        result_list = list(result)
+        if result_list:
+            total_milliseconds = result_list[0]["totalMilliseconds"]
+        else:
+            total_milliseconds = 0
+
+        return {"totalTime":total_milliseconds}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 async def get_user_details(collection_user: Collection, user_email: str) -> dict:
     try:
@@ -1177,3 +1226,4 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Failed to create job application. Please try again.")
+

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Res
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse,RedirectResponse
 from datetime import timedelta
-from models import EmpTimeRep, EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount
+from models import TimeReportQuery, EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel
 from utils import get_current_user
 from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from gridfs import GridFS
@@ -35,6 +35,7 @@ from services import (
     empTimeReport,
     upload_bills,
     get_bill_details,
+    get_total_work_time,
     get_user_details,
     create_user_leave_request,
     calculate_leave_difference,
@@ -71,8 +72,26 @@ async def refresh_access_token(refresh_token: str):
     return refresh_tokens(refresh_token)
 
 @router.post("/users")
-async def create_user(user: User):
-    return create_new_user(user)
+async def create_user(
+    fName: str = Form(...),
+    lName: str = Form(...),
+    contact: str = Form(...),
+    user_email: str = Form(...),
+    address: str = Form(...),
+    user_pw: str = Form(...),
+    user_type: str = Form(...),
+    profile_pic: UploadFile = File(...)
+):
+    user = User(
+        fName=fName,
+        lName=lName,
+        contact=contact,
+        user_email=user_email,
+        address=address,
+        user_pw=user_pw,
+        user_type=user_type
+    )
+    return await create_new_user(user, profile_pic)
 
 @router.post("/login")
 async def login(user_login: User_login):
@@ -158,9 +177,17 @@ async def empSubmit(form:EmpSubmitForm):
     return empSubmitForm(form)
 
 @router.post('/empTimeReport')
-async def empTimeRep(data:EmpTimeRep):
-    return empTimeReport(data)
+async def empTimeRep(data:EmpTimeRep,current_user: User = Depends(get_current_user)):
+    return empTimeReport(data,current_user)
 
+@router.post("/get_response")
+async def get_response(request: UserMessage):
+    response = run_conversation(request.message)
+    return JSONResponse({"response": response})
+
+@router.post("/total-work-milliseconds")
+async def get_total_work_milliseconds(query: TimeReportQuery,current_user: User = Depends(get_current_user)):
+    return get_total_work_time(query,current_user)
 @router.get("/current-user-details")
 async def get_current_user_details(current_user_email: str = Depends(get_current_user)):
     user_details = await get_user_details(collection_user, current_user_email["user_email"])
@@ -290,3 +317,4 @@ async def create_candidate_cv(
     cv: UploadFile = File(...)
 ):
     return await create_candidate_cv_service(vacancy_id, name, email, contact_number, cv)
+
