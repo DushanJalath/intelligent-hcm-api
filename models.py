@@ -1,8 +1,9 @@
 
 # models.py
-from pydantic import BaseModel
+from pydantic import BaseModel,Field
 from typing import Optional
 from fastapi import UploadFile, File
+from datetime import datetime
 
 
 class User_login(BaseModel):
@@ -21,6 +22,7 @@ class User(BaseModel):
     address:str
     user_pw:str
     user_type:str
+    user_role:str #added new
 
 class add_vacancy(BaseModel):
     possition: str
@@ -51,6 +53,15 @@ class Bills(BaseModel):
     submitdate:str
     invoice_number:str
 
+#new basemodel for Employee Leaves
+class EmployeeLeave(BaseModel):
+    user_email:str
+    name: str
+    start_date: datetime
+    end_date: datetime
+    leave_type: str
+    leave_status:str="pending"
+
 class Leaves(BaseModel):
     l_id:str
     totla:float
@@ -59,11 +70,12 @@ class Leaves(BaseModel):
     u_id:str
 
 class Candidate(BaseModel):
-    email:str
-    cv:str
-    name:str
-    type:str
+    #changed the order
     c_id:str
+    email:str
+    name:str
+    cv:str
+    score:float #addded new
     vacancy_id:str
 
 class UpdateCandidateStatus(BaseModel):
@@ -78,14 +90,16 @@ class Parsed_Candidates(BaseModel):
     reason:str
 
 class Interview(BaseModel):
+    i_id:str
+    c_id:str
     date:str
     time:str
-    result:str #pending or confrim or selected or rejected
     venue:str
-    i_id:str
-    candidate_id:str
     interviewer_id:str
-    confirmation_date:str
+    confirmed_date:str
+    result:str #pending or confrim or selected or rejected
+    #candidate_id:str
+    
 
 class PredictionRequest(BaseModel):
     date: str
@@ -108,6 +122,29 @@ class EmpTimeRep(BaseModel):
 class FileModel(BaseModel):  
     image_url: str
 
+      
+class LeaveRequest(BaseModel):
+    leaveType: str
+    startDate: str
+    dayCount:  str
+    submitdate:str
+    submitdatetime:str
+
+class Update_leave_request(BaseModel):
+    new_status: str
+
+class EmployeeLeaveCount(BaseModel):
+    submitdate: str
+    sickLeaveCount: str
+    casualLeaveCount: str
+    annualLeaveCount:  str
+
+class ManagerLeaveCount(BaseModel):
+    submitdate:str
+    sickLeaveCount: str
+    casualLeaveCount: str
+    annualLeaveCount:  str
+
 class UserMessage(BaseModel):
     message: str
 
@@ -117,3 +154,21 @@ class TimeReportQuery(BaseModel):
 class UserResponse(BaseModel):
     message: str
     user_id: str
+
+class JobVacancy(BaseModel):
+    vacancy_id: str
+    job_title: str
+    job_type: str
+    work_mode: str
+    pdf_id: str
+
+
+class JobApplicatons(BaseModel):
+    c_id: str
+    name: str
+    email: str
+    contact_number: str
+    cv: str
+    job_title: str
+    job_type: str
+    work_mode: str
