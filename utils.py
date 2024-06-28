@@ -1,7 +1,7 @@
 # utils.py
 import bcrypt
-import jwt
-from jwt import PyJWTError, decode as jwt_decode, encode as jwt_encode
+from jose import jwt
+from jose.exceptions import JWTError
 from fastapi import Depends
 from datetime import datetime, timedelta
 from fastapi import HTTPException
@@ -32,7 +32,7 @@ def decode_token(token: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload
-    except PyJWTError:
+    except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
     
 def hash_password(password: str) -> str:
@@ -54,7 +54,7 @@ def decode_access_token(token: str):
         if email is None:
             raise HTTPException(status_code=401, detail="Invalid token")
         return email
-    except PyJWTError:
+    except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 
