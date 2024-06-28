@@ -15,6 +15,7 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase.ttfonts import TTFont 
 from reportlab.pdfbase import pdfmetrics 
 from reportlab.lib import colors 
+from reportlab.lib.units import inch
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
@@ -80,6 +81,16 @@ def create_new_vacancy(request_data, current_user):
     last_seq = int(last_id[1:])
     new_seq = last_seq + 1
     vacancy_id = f"A{new_seq:03d}"
+    
+    # Generate PDF
+    pdf_file_path = generate_vacancy_pdf(vacancy_id, request_data.pre_requisits, request_data.responsibilities, request_data.more_details)
+    
+    # Store PDF in GridFS
+    pdf_file_id = store_pdf_in_gridfs(pdf_file_path, f"{vacancy_id}.pdf")
+    
+    # Remove the local file after storing it in GridFS
+    os.remove(pdf_file_path)
+
     data = {
         "vacancy_id": vacancy_id,
         "user_type": current_user.get('user_type'),
@@ -92,9 +103,59 @@ def create_new_vacancy(request_data, current_user):
         "more_details": request_data.more_details,
         "status": "pending",
         "publish_status": "pending",
+        "pdf_file_id": pdf_file_id
     }
     collection_add_vacancy.insert_one(data)
-    return {"message": "Vacancy created successfully"}
+    
+    return {"message": "Vacancy created successfully", "pdf_file_id": str(pdf_file_id)}
+
+
+def generate_vacancy_pdf(vacancy_id, pre_requisits, responsibilities, more_details):
+    file_name = f"{vacancy_id}.pdf"
+    c = canvas.Canvas(file_name, pagesize=letter)
+    width, height = letter
+    
+    # Example of customizing text length
+    max_line_length = 80  # Maximum characters per line for other sections
+    max_line_length_more_details = 60  # Maximum characters per line for more_details
+    text_margin = 50     # Margin from the left edge
+    
+    # Vacancy ID
+    c.drawString(text_margin, height - 100, f"Vacancy ID: {vacancy_id}")
+    
+    # Pre-requisites
+    c.drawString(text_margin, height - 120, "Pre-requisites:")
+    lines = [pre_requisits[i:i+max_line_length] for i in range(0, len(pre_requisits), max_line_length)]
+    for i, line in enumerate(lines):
+        c.drawString(text_margin, height - 140 - i * 12, line)
+    
+    # Responsibilities
+    c.drawString(text_margin, height - 180, "Responsibilities:")
+    lines = [responsibilities[i:i+max_line_length] for i in range(0, len(responsibilities), max_line_length)]
+    for i, line in enumerate(lines):
+        c.drawString(text_margin, height - 200 - i * 12, line)
+    
+    # More Details
+    c.drawString(text_margin, height - 240, "More Details:")
+    # Split more_details by newline characters and handle max_line_length
+    more_details_lines = []
+    for paragraph in more_details.split("\n"):
+        lines = [paragraph[i:i+max_line_length_more_details] for i in range(0, len(paragraph), max_line_length_more_details)]
+        more_details_lines.extend(lines)
+    
+    for i, line in enumerate(more_details_lines):
+        c.drawString(text_margin, height - 260 - i * 12, line)
+    
+    c.showPage()
+    c.save()
+    
+    return file_name
+
+def store_pdf_in_gridfs(file_path, file_name):
+    with open(file_path, 'rb') as f:
+        file_id = fs.put(f, filename=file_name)
+    return file_id
+    
 
 def get_all_vacancies(current_user):
     vacancies = []
@@ -121,6 +182,7 @@ def get_hr_vacancies_service(current_user):
             "project_type": vacancy["project_type"],
             "possition": vacancy["possition"],
             "num_of_vacancies": vacancy["num_of_vacancies"]
+            
         }
         vacancies.append(vacancy_data)
     return vacancies

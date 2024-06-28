@@ -8,7 +8,7 @@ database = client.HCM
 
 collection_user = database["user"] 
 collection_user_login = database["users"]
-collection_add_vacancy =database["AddVacancy"]
+# collection_add_vacancy =database["AddVacancy"]
 collection_leave_predictions = database["LeavePredictions"]
 collection_bills = database["bills"]
 collection_bill_upload = database["BillUpload"] 
@@ -32,3 +32,5 @@ collection_job_vacancies = database["JobVacancies"]
 ####Uploaded CV and details#####
 collection_job_applications = database["JobApplications"]
 grid_fs = GridFS(database)
+
+collection_add_vacancy = database['AddVacancy']
