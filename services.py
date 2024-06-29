@@ -24,10 +24,12 @@ import io ,os
 import io ,os
 from google.cloud import storage
 import aiohttp
-from bson import json_util
+from bson import json_util,ObjectId  
 from pymongo import MongoClient, DESCENDING
 from io import BytesIO
 from starlette.responses import JSONResponse,StreamingResponse
+from reportlab.lib.utils import ImageReader
+from PIL import Image
 
 
 
@@ -98,7 +100,7 @@ def create_new_vacancy(request_data, current_user):
     vacancy_id = f"A{new_seq:03d}"
     
     # Generate PDF
-    pdf_file_path = generate_vacancy_pdf(vacancy_id, request_data.pre_requisits, request_data.responsibilities, request_data.more_details)
+    pdf_file_path = generate_vacancy_pdf(request_data.possition, request_data.job_type, request_data.pre_requisits, request_data.responsibilities, request_data.more_details)
     
     # Store PDF in GridFS
     pdf_file_id = store_pdf_in_gridfs(pdf_file_path, f"{vacancy_id}.pdf")
@@ -106,6 +108,9 @@ def create_new_vacancy(request_data, current_user):
     # Remove the local file after storing it in GridFS
     os.remove(pdf_file_path)
 
+    # Convert pdf_file_id to string (removes the ObjectID wrapper)
+    pdf_file_id_str = str(pdf_file_id)
+    
     data = {
         "vacancy_id": vacancy_id,
         "user_type": current_user.get('user_type'),
@@ -118,48 +123,130 @@ def create_new_vacancy(request_data, current_user):
         "more_details": request_data.more_details,
         "status": "pending",
         "publish_status": "pending",
-        "pdf_file_id": pdf_file_id
+        "pdf_file_id": pdf_file_id_str  # Store the pdf_file_id as string
     }
     collection_add_vacancy.insert_one(data)
     
-    return {"message": "Vacancy created successfully", "pdf_file_id": str(pdf_file_id)}
+    return {"message": "Vacancy created successfully", "pdf_file_id": pdf_file_id_str}
 
-
-def generate_vacancy_pdf(vacancy_id, pre_requisits, responsibilities, more_details):
-    file_name = f"{vacancy_id}.pdf"
+def generate_vacancy_pdf(position, job_type, pre_requisites, responsibilities, more_details):
+    file_name = "vacancy_details.pdf"
     c = canvas.Canvas(file_name, pagesize=letter)
     width, height = letter
     
-    # Example of customizing text length
-    max_line_length = 80  # Maximum characters per line for other sections
-    max_line_length_more_details = 60  # Maximum characters per line for more_details
-    text_margin = 50     # Margin from the left edge
+    # Set the logo path to the images folder
+    logo_path = "newLogo.png"
     
-    # Vacancy ID
-    c.drawString(text_margin, height - 100, f"Vacancy ID: {vacancy_id}")
+    # Load the image using Pillow and ensure transparency is handled
+    image = Image.open(logo_path)
+    if image.mode in ('RGBA', 'LA'):
+        background = Image.new(image.mode[:-1], image.size, (255, 255, 255))
+        background.paste(image, image.split()[-1])
+        image = background
+    
+    logo = ImageReader(image)
+    logo_width, logo_height = 100, 100  # Adjust size as needed
+    c.drawImage(logo, 20, height - logo_height - 20, width=logo_width, height=logo_height)
+    
+    # Add position and job type to the right side of the logo
+    c.setFont("Helvetica-Bold", 12)
+    c.drawRightString(width - 20, height - 50, f"Job Position: {position}")
+    c.drawRightString(width - 20, height - 70, f"Job Type: {job_type}")
+    
+    # Text settings
+    text_margin = 50  # Margin from the left edge
+    line_height = 12
+    max_line_length = 110  # Maximum characters per line for other sections
+    max_line_length_more_details = 60  # Maximum characters per line for more_details
+
+    # Add Company Description
+    company_description = """IFS is a billion-dollar revenue company with 6000+ employees on all continents. Our leading AI technology 
+    is the backbone of our award-winning enterprise software solutions, enabling our customers to be their 
+    best when it really matters–at the Moment of Service™. Our commitment to internal AI adoption has allowed 
+    us to stay at the forefront of technological advancements,ensuring our colleagues can unlock their creativity 
+    and productivity, and our solutions are always cutting-edge.
+
+    At IFS, we’re flexible, we’re innovative, and we’re focused not only on how we can engage with our customers 
+    but on how we can make a real change and have a worldwide impact. We help solve some of society’s greatest 
+    challenges, fostering a better future through our agility, collaboration, and trust.
+
+    We celebrate diversity and understand our responsibility to reflect the diverse world we work in. We are 
+    committed to promoting an inclusive workforce that fully represents the many different cultures, backgrounds, 
+    and viewpoints of our customers, our partners,and our communities. As a truly international company serving 
+    people from around the globe, we realize that our success is tantamount to the respect we have for those 
+    different points of view.
+
+    By joining our team, you will have the opportunity to be part of a global, diverse environment; you will be 
+    joining a winning team with a commitment to sustainability; and a company where we get things done so that 
+    you can make a positive impact on the world.
+
+    We’re looking for innovative and original thinkers to work in an environment where you can #MakeYourMoment 
+    so that we can help others make theirs. With the power of our AI-driven solutions, we empower our team to 
+    change the status quo and make a real difference.
+
+    If you want to change the status quo, we’ll help you make your moment. Join Team Purple. Join IFS."""
+    
+    # Draw the company description on the PDF
+    c.drawString(text_margin, height - 140, "Company Description")
+    c.setFont("Helvetica", 10)
+    
+    # Splitting the company description into lines and drawing each line
+    company_description_lines = company_description.split('\n')
+    y_position = height - 160  # Starting y position for the text
+    for paragraph in company_description_lines:
+        lines = paragraph.split('\n')
+        for line in lines:
+            if y_position < 50:
+                c.showPage()
+                y_position = height - 50
+                c.setFont("Helvetica", 10)
+            c.drawString(text_margin, y_position, line)
+            y_position -= line_height
+    
+    # Add top margin for "Pre-requisites:"
+    top_margin_pre_requisites = 140 + len(company_description_lines) * line_height + 40  # Adjust this value as needed
     
     # Pre-requisites
-    c.drawString(text_margin, height - 120, "Pre-requisites:")
-    lines = [pre_requisits[i:i+max_line_length] for i in range(0, len(pre_requisits), max_line_length)]
-    for i, line in enumerate(lines):
-        c.drawString(text_margin, height - 140 - i * 12, line)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(text_margin, y_position - 20, "Pre-requisites")
+    y_position -= 40
+    c.setFont("Helvetica", 10)
+    pre_requisites_lines = pre_requisites.split('\n')
+    for line in pre_requisites_lines:
+        if y_position < 50:
+            c.showPage()
+            y_position = height - 50
+            c.setFont("Helvetica", 10)
+        c.drawString(text_margin, y_position, line)
+        y_position -= line_height
     
     # Responsibilities
-    c.drawString(text_margin, height - 180, "Responsibilities:")
-    lines = [responsibilities[i:i+max_line_length] for i in range(0, len(responsibilities), max_line_length)]
-    for i, line in enumerate(lines):
-        c.drawString(text_margin, height - 200 - i * 12, line)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(text_margin, y_position - 20, "Responsibilities")
+    y_position -= 40
+    c.setFont("Helvetica", 10)
+    responsibilities_lines = responsibilities.split('\n')
+    for line in responsibilities_lines:
+        if y_position < 50:
+            c.showPage()
+            y_position = height - 50
+            c.setFont("Helvetica", 10)
+        c.drawString(text_margin, y_position, line)
+        y_position -= line_height
     
     # More Details
-    c.drawString(text_margin, height - 240, "More Details:")
-    # Split more_details by newline characters and handle max_line_length
-    more_details_lines = []
-    for paragraph in more_details.split("\n"):
-        lines = [paragraph[i:i+max_line_length_more_details] for i in range(0, len(paragraph), max_line_length_more_details)]
-        more_details_lines.extend(lines)
-    
-    for i, line in enumerate(more_details_lines):
-        c.drawString(text_margin, height - 260 - i * 12, line)
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(text_margin, y_position - 20, "More Details")
+    y_position -= 40
+    c.setFont("Helvetica", 10)
+    more_details_lines = more_details.split('\n')
+    for line in more_details_lines:
+        if y_position < 50:
+            c.showPage()
+            y_position = height - 50
+            c.setFont("Helvetica", 10)
+        c.drawString(text_margin, y_position, line)
+        y_position -= line_height
     
     c.showPage()
     c.save()
