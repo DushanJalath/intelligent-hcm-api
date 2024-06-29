@@ -120,6 +120,7 @@ def create_new_vacancy(request_data, current_user):
         "possition": request_data.possition,
         "num_of_vacancies": request_data.num_of_vacancies,
         "responsibilities": request_data.responsibilities,
+        "work_mode": request_data.work_mode,
         "more_details": request_data.more_details,
         "status": "pending",
         "publish_status": "pending",
@@ -268,7 +269,8 @@ def get_all_vacancies(current_user):
             "possition": vacancy["possition"],
             "num_of_vacancies": vacancy["num_of_vacancies"],
             "status": vacancy["status"],
-            "publish_status": vacancy["publish_status"]
+            "publish_status": vacancy["publish_status"],
+            "pdf_file_id": str(vacancy["pdf_file_id"]) if isinstance(vacancy["pdf_file_id"], ObjectId) else vacancy["pdf_file_id"]
         }
         vacancies.append(vacancy_data)
     return vacancies
@@ -283,7 +285,8 @@ def get_hr_vacancies_service(current_user):
             "vacancy_id": vacancy["vacancy_id"],
             "job_type": vacancy["job_type"],
             "possition": vacancy["possition"],
-            "num_of_vacancies": vacancy["num_of_vacancies"]
+            "num_of_vacancies": vacancy["num_of_vacancies"],
+            "pdf_file_id": str(vacancy["pdf_file_id"]) if isinstance(vacancy["pdf_file_id"], ObjectId) else vacancy["pdf_file_id"]
             
         }
         vacancies.append(vacancy_data)
@@ -1328,4 +1331,17 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Failed to create job application. Please try again.")
+    
+def download_vacancy_pdf(pdf_file_id, fs, current_user):
+    if current_user.get('user_type') not in ["HR", "Manager"]:
+        raise HTTPException(status_code=403, detail="Unauthorized, only HR can download CVs")
+    try:
+        # Retrieve the file from GridFS
+        file = fs.get(ObjectId(pdf_file_id))
+        if file is None:
+            raise HTTPException(status_code=404, detail="pdf not found")
+        # Return the file content as a StreamingResponse with the original filename
+        return StreamingResponse(file, media_type="application/octet-stream", headers={"Content-Disposition": f"attachment; filename={file.filename}"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
