@@ -56,7 +56,8 @@ from services import (
     create_temp_job_vacancies_service,
     get_file_service, 
     get_all_job_vacancies_service,
-    create_candidate_cv_service
+    create_candidate_cv_service,
+    download_vacancy_pdf
 )
 
 router = APIRouter()
@@ -317,4 +318,8 @@ async def create_candidate_cv(
     cv: UploadFile = File(...)
 ):
     return await create_candidate_cv_service(vacancy_id, name, email, contact_number, cv)
+
+@router.get("/download_vacancy-pdf/{pdf_file_id}")
+async def download_vacancypdf(pdf_file_id: str, fs: GridFS = Depends(get_gridfs), current_user: User = Depends(get_current_user)):
+    return download_vacancy_pdf(pdf_file_id, fs, current_user)
 
