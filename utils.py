@@ -181,3 +181,6 @@ async def extract_text_from_images(images):
 
     return results
 
+def convert_object_id(doc):
+    doc['_id'] = str(doc['_id'])
+    return doc
