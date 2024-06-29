@@ -30,7 +30,7 @@ from io import BytesIO
 from starlette.responses import JSONResponse,StreamingResponse
 from reportlab.lib.utils import ImageReader
 from PIL import Image
-
+import json
 
 
 def get_gridfs():
@@ -488,18 +488,23 @@ def create_new_candidate(request_data):
 def get_candidates_service(current_user):
     if current_user.get('user_type') != "HR":
         raise HTTPException(status_code=403, detail="Unauthorized, only HR can view candidates")
+
     excluded_statuses = ["approved", "rejected"]
     candidates = []
+    
     for candidate in collection_new_candidate.find({"status": {"$nin": excluded_statuses}}).sort("score", -1):
-        candidate_data = {
-            "c_id": candidate["c_id"],
-            "email": candidate["email"],
-            "name": candidate["name"],
-            "score": candidate["score"],
-            "cv": candidate["cv"],
-            "vacancy_id": candidate["vacancy_id"],
-        }
-        candidates.append(candidate_data)
+        vacancy = collection_add_vacancy.find_one({"vacancy_id": candidate["vacancy_id"]})
+        if vacancy:
+            candidate_data = {
+                "c_id": candidate["c_id"],
+                "email": candidate["email"],
+                "name": candidate["name"],
+                "score": candidate["score"],
+                "cv": candidate["cv"],
+                "vacancy": vacancy.get("possition")
+            }
+            candidates.append(candidate_data)
+    
     return candidates
 
 def update_candidate_status(c_id, status_data, current_user):
@@ -597,7 +602,7 @@ def get_user_details(user):
     else:
         raise HTTPException(status_code=404, detail="User not found")
 
-async def get_user_details(collection_user: Collection, user_email: str) -> dict:
+async def get_user_detail(collection_user: Collection, user_email: str) -> dict:
     try:
         user = collection_user.find_one({"user_email": user_email}) 
         if user:
