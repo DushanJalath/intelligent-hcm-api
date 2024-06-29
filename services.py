@@ -114,6 +114,7 @@ def create_new_vacancy(request_data, current_user):
         "possition": request_data.possition,
         "num_of_vacancies": request_data.num_of_vacancies,
         "responsibilities": request_data.responsibilities,
+        "work_mode": request_data.work_mode,
         "more_details": request_data.more_details,
         "status": "pending",
         "publish_status": "pending",

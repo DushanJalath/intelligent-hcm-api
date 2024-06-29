@@ -29,6 +29,7 @@ class add_vacancy(BaseModel):
     pre_requisits:str
     responsibilities: str
     job_type: str
+    work_mode: str
     num_of_vacancies: int
     more_details: str
 
