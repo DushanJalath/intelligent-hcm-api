@@ -58,7 +58,8 @@ from services import (
     get_file_service, 
     get_all_job_vacancies_service,
     create_candidate_cv_service,
-    download_vacancy_pdf
+    download_vacancy_pdf,
+    get_all_vacancies_service
 )
 
 router = APIRouter()
@@ -296,26 +297,16 @@ async def get_manager_leave_request(current_user_details: dict = Depends(get_cur
 #     return pass_manager_leave_count(current_user_details)
 
 
-############# Create Temp Vacancy for Testing ###########
-@router.post("/Create-Temp-Job-Vacancies/")
-async def create_temp_job_vacancies(
-    job_title: str = Form(...), 
-    job_type: str = Form(...), 
-    work_mode: str = Form(...),
-    file: UploadFile = File(...)
-):
-    return await create_temp_job_vacancies_service(job_title, job_type, work_mode, file)
-
-
 @router.get("/file/{file_id}")
 async def get_file(file_id: str):
     return await get_file_service(file_id)
+
 
 @router.get("/job-vacancies/")
 async def get_all_job_vacancies():
     return await get_all_job_vacancies_service()
 
-#### Candidate Upload CV #####
+
 @router.post("/Candidate-CV-Upload/")
 async def create_candidate_cv(
     vacancy_id: str = Form(...),
@@ -327,6 +318,11 @@ async def create_candidate_cv(
     return await create_candidate_cv_service(vacancy_id, name, email, contact_number, cv)
 
 @router.get("/download_vacancy-pdf/{pdf_file_id}")
-async def download_vacancypdf(pdf_file_id: str, fs: GridFS = Depends(get_gridfs), current_user: User = Depends(get_current_user)):
-    return download_vacancy_pdf(pdf_file_id, fs, current_user)
+async def download_vacancypdf(pdf_file_id: str, fs: GridFS = Depends(get_gridfs)):
+    return download_vacancy_pdf(pdf_file_id, fs)
+
+
+@router.get("/vacancies")
+async def get_all_vacancie():
+    return await get_all_vacancies_service()
 
