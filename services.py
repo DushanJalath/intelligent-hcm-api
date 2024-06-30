@@ -7,7 +7,7 @@ from typing import List
 from pymongo.collection import Collection
 from bson import ObjectId
 from gridfs import GridFS
-from fastapi import HTTPException, UploadFile, File, Response,Depends
+from fastapi import HTTPException, UploadFile, File, Response,Depends, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from config import REFRESH_TOKEN_EXPIRE_DAYS,ACCESS_TOKEN_EXPIRE_MINUTES
 from reportlab.pdfgen import canvas 
@@ -20,6 +20,8 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
 from cv_parser import process_resume
 import PyPDF2
+import pdfplumber
+import concurrent.futures 
 import io ,os
 import io ,os
 from google.cloud import storage
@@ -278,10 +280,18 @@ def get_all_vacancies(current_user):
 def get_hr_vacancies_service(current_user):
     if current_user.get('user_type') != "HR":
         raise HTTPException(status_code=403, detail="Unauthorized, only HR can view vacancies")
-    excluded_statuses = ["approved", "rejected"]
+    excluded_statuses = ["rejected"]
+    
+    user_email = current_user.get("user_email")
+    user = collection_user.find_one({"user_email": user_email})
+    fName = user.get("fName", "N/A")
+    lName = user.get("lName", "N/A")
+
     vacancies = []
-    for vacancy in collection_add_vacancy.find({"status": {"$nin": excluded_statuses}}):
+    for vacancy in collection_add_vacancy.find({"status": {"$nin": excluded_statuses},"publish_status": "pending"}):
         vacancy_data = {
+            "publisher_fname": fName,
+            "publisher_lname": lName,
             "vacancy_id": vacancy["vacancy_id"],
             "job_type": vacancy["job_type"],
             "possition": vacancy["possition"],
@@ -1182,30 +1192,44 @@ def get_ot_data_manager(current_user):
     else:
         raise HTTPException(status_code=403, detail="User is not authorized to view this data.")
     
-
-
-
-def parse_cv_and_store(c_id,fs):
+async def parse_cv_and_store(c_id: str):
     try:
-        candidate=collection_new_candidate.find_one({"c_id":c_id})
-        v_id=candidate.get("vacancy_id")
-        cv_id=candidate.get("cv")
-        vacancy=collection_add_vacancy.find_one({"vacancy_id":v_id})
-        jd=vacancy.get("job_description")
+        candidate = collection_job_applications.find_one({"c_id": c_id})
+        v_id = candidate.get("job_title")
+        cv_id = candidate.get("cv")
+        jd = collection_job_vacancies.find_one({"job_title": v_id})
+        jd_id = jd.get("pdf_id")
+        cv_pdf=grid_fs.get(ObjectId(cv_id))
+        jd_pdf=grid_fs.get(ObjectId(jd_id))
 
-        status,matching_score=process_resume(cv_id,fs,jd)
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            cv_future=executor.submit (extract_text_from_pdf,cv_pdf)
+            jd_future=executor.submit (extract_text_from_pdf,jd_pdf)
+
+            cv_text=cv_future.result()
+            jd_text=jd_future.result()
+
+        status,matching_score=process_resume(cv_text,jd_text)
 
         if status != "Success":
-            return {"error": status}
-        collection_new_candidate.update_one({"c_id": c_id}, {"$set": {"score": float(matching_score)}})
-        return "Success", matching_score
-        
+            return status, None
+        collection_job_applications.update_one({"c_id": c_id}, {"$set": {"score": float(matching_score)}})
+        return {"Success",matching_score}
     except FileNotFoundError:
         return f"File not found: {cv_id}", None
-    except PyPDF2.errors.PdfReadError:
-        return f"Error reading PDF: {cv_id}", None
-    except Exception as e:
+    except Exception as e:  
         return f"An error occurred while processing {cv_id}: {e}", None
+
+def extract_text_from_pdf(pdf_file):
+    try:
+        text_output = ""
+        with pdfplumber.open(pdf_file) as pdf:
+            for page in pdf.pages:
+                text_output += page.extract_text()
+        return text_output
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error extracting text from PDF: {e}")
+
     
 
 def add_interview_service(interview_data,current_user):
@@ -1390,6 +1414,7 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
             job_title=job_details.get("possition"),
             job_type=job_details.get("job_type"),
             work_mode=job_details.get("work_mode"),
+            score=" "
         )
         collection_job_applications.insert_one(job_application.dict())
 
@@ -1437,4 +1462,4 @@ def delete_job_vacancy(vacancy_id: str):
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Failed to delete vacancy")
-
+ 

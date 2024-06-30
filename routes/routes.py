@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Response
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Response,BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse,RedirectResponse
 from datetime import timedelta
@@ -9,7 +9,7 @@ from gridfs import GridFS
 from bson.objectid import ObjectId
 from gridfs import GridFS
 from typing import List
-from database import collection_bills,collection_user
+from database import collection_bills,collection_user,fs
 from services import (
     login_user,
     refresh_tokens,
@@ -59,6 +59,7 @@ from services import (
     get_file_service, 
     get_all_job_vacancies_service,
     create_candidate_cv_service,
+    parse_cv_and_store,
     download_vacancy_pdf,
     get_all_vacancies_service,
     calculate_managers_leave_difference,
@@ -320,7 +321,8 @@ async def create_candidate_cv(
     name: str = Form(...), 
     email: str = Form(...), 
     contact_number: str = Form(...),
-    cv: UploadFile = File(...)
+    cv: UploadFile = File(...),
+    
 ):
     return await create_candidate_cv_service(vacancy_id, name, email, contact_number, cv)
 
@@ -332,6 +334,7 @@ async def download_vacancypdf(pdf_file_id: str, fs: GridFS = Depends(get_gridfs)
 async def get_all_vacancie():
     return await get_all_vacancies_service()
 
+  
 @router.delete("/vacancy/{vacancy_id}")
 async def delete_vacancy(vacancy_id: str):
     try:
@@ -345,3 +348,22 @@ async def delete_vacancy(vacancy_id: str):
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Failed to delete vacancy")
+        
+### Parse CV ###
+@router.post("/Parse-CV/{c_id}")
+async def parse_cv_and_update_score(c_id: str):
+    try:
+        # Call your existing parsing function
+        return await parse_cv_and_store(c_id)
+
+    except Exception as e:
+        return {"error": f"Failed to parse CV and update score: {str(e)}"}, 500
+
+
+
+
+   
+
+
+
+
