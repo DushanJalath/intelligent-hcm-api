@@ -621,7 +621,7 @@ async def get_user_detail(collection_user: Collection, user_email: str) -> dict:
         raise HTTPException(status_code=500, detail="Failed to retrieve user details")
 
 
-async def create_user_leave_request(request_data, current_user_details):
+async def create_employee_leave_request(request_data, current_user_details):
     last_leave_request = collection_add_leave_request.find_one(sort=[("_id", -1)])
     last_id = last_leave_request["leave_id"] if last_leave_request else "L000"
     last_seq = int(last_id[1:])
@@ -653,6 +653,41 @@ async def create_user_leave_request(request_data, current_user_details):
         return {"message": "Leave request created successfully"}
     else:
         raise HTTPException(status_code=404, detail="User not found")
+
+
+async def create_manager_leave_request(request_data, current_user_details):
+    last_leave_request = collection_add_leave_request.find_one(sort=[("_id", -1)])
+    last_id = last_leave_request["leave_id"] if last_leave_request else "L000"
+    last_seq = int(last_id[1:])
+    new_seq = last_seq + 1
+    leave_id = f"B{new_seq:03d}"
+
+    if current_user_details:
+        # Calculate remaining leaves dynamically
+        remaining_leaves = await calculate_managers_leave_difference(current_user_details)
+
+        leave_request_data = {
+            "leave_id": leave_id,
+            "user_type": current_user_details.get('user_type'),
+            "user_email": current_user_details.get("user_email"),
+            "user_name": current_user_details.get("name"),
+            "leaveType": request_data.leaveType,
+            "startDate": request_data.startDate,
+            "dayCount": request_data.dayCount,
+            "submitdate": request_data.submitdate,
+            "submitdatetime": request_data.submitdatetime,
+            "status": "pending",
+            "remaining_sick_leave": remaining_leaves.get("SickLeaveCount"),
+            "remaining_annual_leave": remaining_leaves.get("AnnualLeaveCount"),
+            "remaining_casual_leave": remaining_leaves.get("CasualLeaveCount")
+        }
+
+        # Insert the leave request into the database
+        collection_add_leave_request.insert_one(leave_request_data)
+        return {"message": "Leave request created successfully"}
+    else:
+        raise HTTPException(status_code=404, detail="User not found")
+
 
 async def get_current_user_details(current_user_email: str = Depends(get_current_user)):
     user_details = await get_user_details(collection_user, current_user_email["user_email"])
@@ -709,7 +744,7 @@ def pass_employee_leave_count(current_user_details):
     return e_leave_count
 
 
-def pass_manager_leave_count(current_user_details):
+def pass_managers_leave_count(current_user_details):
     m_leave_count = []
     latest_leave_count = collection_add_manager_leave_count.find().sort("submitdate", DESCENDING).limit(1)
     
@@ -747,6 +782,38 @@ def get_user_total_leave_days(current_user_details):
             leave_counts[leave_type] = 0
 
     return {"user_email": user_email, "leave_counts": leave_counts}
+
+
+async def calculate_managers_leave_difference(current_user_details: dict) -> dict:
+    pass_leave_count = await pass_managers_leave_request(current_user_details)
+    total_leave_days = await get_total_leave_days(current_user_details)
+    
+    difference = {}
+
+    # Convert counts to integers before calculating differences
+    pass_sick_leave_count = int(pass_leave_count[0]["sickLeaveCount"])
+    pass_annual_leave_count = int(pass_leave_count[0]["annualLeaveCount"])
+    pass_casual_leave_count = int(pass_leave_count[0]["casualLeaveCount"])
+
+    total_sick_leave_count = total_leave_days["leave_counts"].get("Sick Leave", 0)
+    total_annual_leave_count = total_leave_days["leave_counts"].get("Annual Leave", 0)
+    total_casual_leave_count = total_leave_days["leave_counts"].get("Casual Leave", 0)
+
+    # Calculate differences
+    difference["SickLeaveCount"] = pass_sick_leave_count - total_sick_leave_count
+    difference["AnnualLeaveCount"] = pass_annual_leave_count - total_annual_leave_count
+    difference["CasualLeaveCount"] = pass_casual_leave_count - total_casual_leave_count
+
+    return difference
+
+# async def get_current_user_details():
+
+# async def pass_managers_leave_request(current_user_details: dict):
+
+# async def get_total_leave_days(current_user_details: dict):
+
+async def pass_managers_leave_request(current_user_details: dict = Depends(get_current_user_details)):
+    return pass_managers_leave_count(current_user_details)
 
 
 def get_user_leave_request(current_user_details):
@@ -1345,7 +1412,8 @@ def download_vacancy_pdf(pdf_file_id, fs):
 
 async def get_all_vacancies_service() -> list:
     try:
-        vacancies = collection_add_vacancy.find()
+        # Filtering vacancies with publish_status: approved
+        vacancies = collection_add_vacancy.find({"publish_status": "approved"})
         vacancies_list = []
         for vacancy in vacancies:
             vacancies_list.append({
