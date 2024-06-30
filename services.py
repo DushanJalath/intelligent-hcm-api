@@ -278,10 +278,18 @@ def get_all_vacancies(current_user):
 def get_hr_vacancies_service(current_user):
     if current_user.get('user_type') != "HR":
         raise HTTPException(status_code=403, detail="Unauthorized, only HR can view vacancies")
-    excluded_statuses = ["approved", "rejected"]
+    excluded_statuses = ["rejected"]
+    
+    user_email = current_user.get("user_email")
+    user = collection_user.find_one({"user_email": user_email})
+    fName = user.get("fName", "N/A")
+    lName = user.get("lName", "N/A")
+
     vacancies = []
-    for vacancy in collection_add_vacancy.find({"status": {"$nin": excluded_statuses}}):
+    for vacancy in collection_add_vacancy.find({"status": {"$nin": excluded_statuses},"publish_status": "pending"}):
         vacancy_data = {
+            "publisher_fname": fName,
+            "publisher_lname": lName,
             "vacancy_id": vacancy["vacancy_id"],
             "job_type": vacancy["job_type"],
             "possition": vacancy["possition"],
@@ -1427,4 +1435,3 @@ async def get_all_vacancies_service() -> list:
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Failed to retrieve vacancies details")
-
