@@ -61,6 +61,7 @@ from services import (
     download_vacancy_pdf,
     get_all_vacancies_service
 )
+from rag import run_conversation
 
 router = APIRouter()
 
@@ -83,6 +84,7 @@ async def create_user(
     address: str = Form(...),
     user_pw: str = Form(...),
     user_type: str = Form(...),
+    user_role: str = Form(...),
     profile_pic: UploadFile = File(...)
 ):
     user = User(
@@ -92,7 +94,8 @@ async def create_user(
         user_email=user_email,
         address=address,
         user_pw=user_pw,
-        user_type=user_type
+        user_type=user_type,
+        user_role=user_role
     )
     return await create_new_user(user, profile_pic)
 
