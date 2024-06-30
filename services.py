@@ -63,7 +63,7 @@ async def create_new_user(user: User, file: UploadFile) -> UserResponse:
         raise HTTPException(status_code=400, detail="Only PNG and JPG files are allowed.")
 
     bucket_name = "pdf_save"
-    credentials_path = "D:/BSc Hons. in AI/Level 2 Sem 2/CM2900 - Industry Based AI Software Project/Codes/intelligent-hcm-api/t.json"
+    credentials_path = "t.json"
     client = storage.Client.from_service_account_json(credentials_path)
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(file.filename)
