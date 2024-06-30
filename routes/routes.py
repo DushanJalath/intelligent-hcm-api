@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Response
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Response,BackgroundTasks
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse,RedirectResponse
 from datetime import timedelta
@@ -9,7 +9,7 @@ from gridfs import GridFS
 from bson.objectid import ObjectId
 from gridfs import GridFS
 from typing import List
-from database import collection_bills,collection_user
+from database import collection_bills,collection_user,fs
 from services import (
     login_user,
     refresh_tokens,
@@ -56,8 +56,10 @@ from services import (
     create_temp_job_vacancies_service,
     get_file_service, 
     get_all_job_vacancies_service,
-    create_candidate_cv_service
+    create_candidate_cv_service,
+    parse_cv_and_store,
 )
+from rag import run_conversation
 
 router = APIRouter()
 
@@ -313,15 +315,35 @@ async def get_file(file_id: str):
 async def get_all_job_vacancies():
     return await get_all_job_vacancies_service()
 
-#### Candidate Upload CV #####
+#### Candidate Upload CV ####
+
 @router.post("/Candidate-CV-Upload/")
 async def create_candidate_cv(
     vacancy_id: str = Form(...),
     name: str = Form(...), 
     email: str = Form(...), 
     contact_number: str = Form(...),
-    cv: UploadFile = File(...)
+    cv: UploadFile = File(...),
+    
 ):
     return await create_candidate_cv_service(vacancy_id, name, email, contact_number, cv)
+
+
+### Parse CV ###
+@router.post("/Parse-CV/{c_id}")
+async def parse_cv_and_update_score(c_id: str):
+    try:
+        # Call your existing parsing function
+        return await parse_cv_and_store(c_id)
+
+    except Exception as e:
+        return {"error": f"Failed to parse CV and update score: {str(e)}"}, 500
+
+
+
+
+   
+
+
 
 
