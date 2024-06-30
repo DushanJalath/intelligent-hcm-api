@@ -1344,4 +1344,3 @@ def download_vacancy_pdf(pdf_file_id, fs, current_user):
         return StreamingResponse(file, media_type="application/octet-stream", headers={"Content-Disposition": f"attachment; filename={file.filename}"})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
