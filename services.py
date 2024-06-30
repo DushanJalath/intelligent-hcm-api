@@ -1343,3 +1343,19 @@ def download_vacancy_pdf(pdf_file_id, fs):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+async def get_all_vacancies_service() -> list:
+    try:
+        vacancies = collection_add_vacancy.find()
+        vacancies_list = []
+        for vacancy in vacancies:
+            vacancies_list.append({
+                "vacancy_id": vacancy["vacancy_id"],
+                "job_type": vacancy["job_type"],
+                "possition": vacancy["possition"],
+                "work_mode": vacancy["work_mode"],
+                "pdf_file_id": str(vacancy["pdf_file_id"]) if "pdf_file_id" in vacancy else None
+            })
+        return vacancies_list
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to retrieve vacancies details")
