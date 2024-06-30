@@ -22,7 +22,7 @@ class User(BaseModel):
     address:str
     user_pw:str
     user_type:str
-    user_role:str #added new
+    user_role:str 
 
 class add_vacancy(BaseModel):
     possition: str
