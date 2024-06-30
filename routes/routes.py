@@ -63,7 +63,9 @@ from services import (
     download_vacancy_pdf,
     get_all_vacancies_service,
     calculate_managers_leave_difference,
-    delete_job_vacancy
+    delete_job_vacancy,
+    get_all_employee_timereporting_service,
+    get_all_manager_timereporting_service
 )
 from rag import run_conversation
 
@@ -358,6 +360,14 @@ async def parse_cv_and_update_score(c_id: str):
 
     except Exception as e:
         return {"error": f"Failed to parse CV and update score: {str(e)}"}, 500
+
+@router.get("/employees_timereporting")
+async def get_all_employee_timereporting():
+    return await get_all_employee_timereporting_service()
+
+@router.get("/managers_timereporting")
+async def get_all_manager_timereporting():
+    return await get_all_manager_timereporting_service()
 
 
 

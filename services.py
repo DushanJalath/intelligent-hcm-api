@@ -33,6 +33,7 @@ from starlette.responses import JSONResponse,StreamingResponse
 from reportlab.lib.utils import ImageReader
 from PIL import Image
 import json
+from collections import defaultdict
 
 
 def get_gridfs():
@@ -1463,3 +1464,61 @@ def delete_job_vacancy(vacancy_id: str):
         print(e)
         raise HTTPException(status_code=500, detail="Failed to delete vacancy")
  
+async def get_all_employee_timereporting_service():
+    total_work_time = defaultdict(int)
+    time_reports = collection_emp_time_rep.find()
+    
+    for report in time_reports:
+        employee_email = report.get("user_email")
+        if employee_email:
+            employee = collection_user.find_one({"user_email": employee_email, "user_type": "Employee"}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+            if employee:
+                total_work_time[employee_email] += report.get("totalWorkMilliSeconds")
+    
+    results = []
+    for employee_email, total_milliseconds in total_work_time.items():
+        employee = collection_user.find_one({"user_email": employee_email}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+        if employee:
+            employee_name = employee.get("user_name")
+            total_seconds = total_milliseconds // 1000
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = (total_seconds % 3600) % 60
+            hms_string = f"Total hours {hours:02}:{minutes:02}:{seconds:02}"
+            report_with_name = {
+                "name": employee_name,
+                "details": hms_string,
+                "dp": employee.get("profile_pic_url")
+            }
+            results.append(report_with_name)
+    return results
+
+
+async def get_all_manager_timereporting_service():
+    total_work_time = defaultdict(int)
+    time_reports = collection_emp_time_rep.find()
+    
+    for report in time_reports:
+        employee_email = report.get("user_email")
+        if employee_email:
+            employee = collection_user.find_one({"user_email": employee_email, "user_type": "Manager"}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+            if employee:
+                total_work_time[employee_email] += report.get("totalWorkMilliSeconds")
+    
+    results = []
+    for employee_email, total_milliseconds in total_work_time.items():
+        employee = collection_user.find_one({"user_email": employee_email}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+        if employee:
+            employee_name = employee.get("user_name")
+            total_seconds = total_milliseconds // 1000
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = (total_seconds % 3600) % 60
+            hms_string = f"Total hours {hours:02}:{minutes:02}:{seconds:02}"
+            report_with_name = {
+                "name": employee_name,
+                "details": hms_string,
+                "dp": employee.get("profile_pic_url")
+            }
+            results.append(report_with_name)
+    return results
