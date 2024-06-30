@@ -62,7 +62,8 @@ from services import (
     parse_cv_and_store,
     download_vacancy_pdf,
     get_all_vacancies_service,
-    calculate_managers_leave_difference
+    calculate_managers_leave_difference,
+    delete_job_vacancy
 )
 from rag import run_conversation
 
@@ -333,6 +334,21 @@ async def download_vacancypdf(pdf_file_id: str, fs: GridFS = Depends(get_gridfs)
 async def get_all_vacancie():
     return await get_all_vacancies_service()
 
+  
+@router.delete("/vacancy/{vacancy_id}")
+async def delete_vacancy(vacancy_id: str):
+    try:
+        result = delete_job_vacancy(vacancy_id)
+        
+        if result.deleted_count == 1:
+            return {"message": f"Vacancy with id {vacancy_id} deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail=f"Vacancy with id {vacancy_id} not found")
+
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to delete vacancy")
+        
 ### Parse CV ###
 @router.post("/Parse-CV/{c_id}")
 async def parse_cv_and_update_score(c_id: str):
