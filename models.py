@@ -22,13 +22,14 @@ class User(BaseModel):
     address:str
     user_pw:str
     user_type:str
-    user_role:str #added new
+    user_role:str 
 
 class add_vacancy(BaseModel):
     possition: str
     pre_requisits:str
     responsibilities: str
     job_type: str
+    work_mode: str
     num_of_vacancies: int
     more_details: str
 

@@ -37,11 +37,13 @@ from services import (
     get_bill_details,
     get_total_work_time,
     get_user_details,
-    create_user_leave_request,
+    get_user_detail,
+    create_employee_leave_request,
+    create_manager_leave_request,
     calculate_leave_difference,
     pass_employee_leave_count,
     get_user_total_leave_days,
-    pass_manager_leave_count,
+    pass_managers_leave_count,
     pass_employee_leave_request,
     get_user_leave_request,
     get_user_leave_status,
@@ -58,6 +60,9 @@ from services import (
     get_all_job_vacancies_service,
     create_candidate_cv_service,
     parse_cv_and_store,
+    download_vacancy_pdf,
+    get_all_vacancies_service,
+    calculate_managers_leave_difference
 )
 from rag import run_conversation
 
@@ -82,6 +87,7 @@ async def create_user(
     address: str = Form(...),
     user_pw: str = Form(...),
     user_type: str = Form(...),
+    user_role: str = Form(...),
     profile_pic: UploadFile = File(...)
 ):
     user = User(
@@ -91,7 +97,8 @@ async def create_user(
         user_email=user_email,
         address=address,
         user_pw=user_pw,
-        user_type=user_type
+        user_type=user_type,
+        user_role=user_role
     )
     return await create_new_user(user, profile_pic)
 
@@ -198,7 +205,7 @@ async def getUserDetails(current_user: User = Depends(get_current_user)):
 
 @router.get("/current-user-details")
 async def get_current_user_details(current_user_email: str = Depends(get_current_user)):
-    user_details = await get_user_details(collection_user, current_user_email["user_email"])
+    user_details = await get_user_detail(collection_user, current_user_email["user_email"])
     return user_details
 
 
@@ -218,9 +225,14 @@ async def get_leave_report(email: str = None, current_user: User = Depends(get_c
     return response
 
 
-@router.post("/create_leave_request")
-async def create_leave_request(request_data: LeaveRequest, current_user_details: dict = Depends(get_current_user_details)):
-    return await create_user_leave_request(request_data, current_user_details)
+@router.post("/employee_create_leave_request")
+async def create_employees_leave_request(request_data: LeaveRequest, current_user_details: dict = Depends(get_current_user_details)):
+    return await create_employee_leave_request(request_data, current_user_details)
+
+
+@router.post("/manager_create_leave_request")
+async def create_managers_leave_request(request_data: LeaveRequest, current_user_details: dict = Depends(get_current_user_details)):
+    return await create_manager_leave_request(request_data, current_user_details)
 
 
 #Hr accept or reject leave requests
@@ -253,59 +265,46 @@ async def get_employee_remaning_leaves(current_user_details: dict = Depends(get_
     difference = await calculate_leave_difference(current_user_details)
     return difference
 
+# Get Employees Remaning Leave Count
+@router.get("/managers_remaning_leaves", response_model=dict)
+async def get_managers_remaning_leaves(current_user_details: dict = Depends(get_current_user_details)):
+    difference = await calculate_managers_leave_difference(current_user_details)
+    return difference
 
 # Get Used Leave Count
 @router.get("/get_total_leave_days")
 async def get_total_leave_days(current_user_details: dict = Depends(get_current_user_details)):
     return get_user_total_leave_days(current_user_details)
 
-
 # Get Employee Latest Leave Count
 @router.get("/pass_employee_leave_count", response_model=List[dict])
 async def pass_employee_leave_request(current_user_details: dict = Depends(get_current_user_details)):
     return pass_employee_leave_count(current_user_details)
 
+# Get Employee Latest Leave Count
+@router.get("/pass_managers_leave_count", response_model=List[dict])
+async def pass_managers_leave_request(current_user_details: dict = Depends(get_current_user_details)):
+    return pass_managers_leave_count(current_user_details)
 
-# Get Employee Leave Count
-@router.get("/get_employee_leave_count")
-async def get_employee_leave_request(current_user_details: dict = Depends(get_current_user_details)):
-    return get_employee_leave_count(current_user_details)
-
-
-# Set Employee Leave Count
+# Set Total Employee Leave Count
 @router.post("/employee_leave_count")
 async def employee_leave_count(request_data: EmployeeLeaveCount, current_user: User = Depends(get_current_user)):
     return create_employee_leave_count(request_data, current_user)
 
+# Get Total Employee Leave Count
+@router.get("/get_employee_leave_count")
+async def get_employee_leave_request(current_user_details: dict = Depends(get_current_user_details)):
+    return get_employee_leave_count(current_user_details)
 
-# Set Manager Leave Count
+# Set Total Manager Leave Count
 @router.post("/manager_leave_count")
 async def manager_leave_count(request_data: ManagerLeaveCount, current_user: User = Depends(get_current_user)):
     return create_manager_leave_count(request_data, current_user)
 
-
-# Get Manager Leave Count
+# Get Total Manager Leave Count
 @router.get("/get_manager_leave_count")
 async def get_manager_leave_request(current_user_details: dict = Depends(get_current_user_details)):
     return get_manager_leave_count(current_user_details)
-
-
-# # Get Manager Latest Leave Count
-# @router.get("/pass_manager_leave_count", response_model=List[dict])
-# async def pass_manager_leave_request(current_user_details: dict = Depends(get_current_user_details)):
-#     return pass_manager_leave_count(current_user_details)
-
-
-############# Create Temp Vacancy for Testing ###########
-@router.post("/Create-Temp-Job-Vacancies/")
-async def create_temp_job_vacancies(
-    job_title: str = Form(...), 
-    job_type: str = Form(...), 
-    work_mode: str = Form(...),
-    file: UploadFile = File(...)
-):
-    return await create_temp_job_vacancies_service(job_title, job_type, work_mode, file)
-
 
 @router.get("/file/{file_id}")
 async def get_file(file_id: str):
@@ -314,8 +313,6 @@ async def get_file(file_id: str):
 @router.get("/job-vacancies/")
 async def get_all_job_vacancies():
     return await get_all_job_vacancies_service()
-
-#### Candidate Upload CV ####
 
 @router.post("/Candidate-CV-Upload/")
 async def create_candidate_cv(
@@ -328,6 +325,13 @@ async def create_candidate_cv(
 ):
     return await create_candidate_cv_service(vacancy_id, name, email, contact_number, cv)
 
+@router.get("/download_vacancy-pdf/{pdf_file_id}")
+async def download_vacancypdf(pdf_file_id: str, fs: GridFS = Depends(get_gridfs)):
+    return download_vacancy_pdf(pdf_file_id, fs)
+
+@router.get("/vacancies")
+async def get_all_vacancie():
+    return await get_all_vacancies_service()
 
 ### Parse CV ###
 @router.post("/Parse-CV/{c_id}")

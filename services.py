@@ -32,7 +32,7 @@ from io import BytesIO
 from starlette.responses import JSONResponse,StreamingResponse
 from reportlab.lib.utils import ImageReader
 from PIL import Image
-
+import json
 
 
 def get_gridfs():
@@ -122,6 +122,7 @@ def create_new_vacancy(request_data, current_user):
         "possition": request_data.possition,
         "num_of_vacancies": request_data.num_of_vacancies,
         "responsibilities": request_data.responsibilities,
+        "work_mode": request_data.work_mode,
         "more_details": request_data.more_details,
         "status": "pending",
         "publish_status": "pending",
@@ -270,7 +271,8 @@ def get_all_vacancies(current_user):
             "possition": vacancy["possition"],
             "num_of_vacancies": vacancy["num_of_vacancies"],
             "status": vacancy["status"],
-            "publish_status": vacancy["publish_status"]
+            "publish_status": vacancy["publish_status"],
+            "pdf_file_id": str(vacancy["pdf_file_id"]) if isinstance(vacancy["pdf_file_id"], ObjectId) else vacancy["pdf_file_id"]
         }
         vacancies.append(vacancy_data)
     return vacancies
@@ -278,14 +280,23 @@ def get_all_vacancies(current_user):
 def get_hr_vacancies_service(current_user):
     if current_user.get('user_type') != "HR":
         raise HTTPException(status_code=403, detail="Unauthorized, only HR can view vacancies")
-    excluded_statuses = ["approved", "rejected"]
+    excluded_statuses = ["rejected"]
+    
+    user_email = current_user.get("user_email")
+    user = collection_user.find_one({"user_email": user_email})
+    fName = user.get("fName", "N/A")
+    lName = user.get("lName", "N/A")
+
     vacancies = []
-    for vacancy in collection_add_vacancy.find({"status": {"$nin": excluded_statuses}}):
+    for vacancy in collection_add_vacancy.find({"status": {"$nin": excluded_statuses},"publish_status": "pending"}):
         vacancy_data = {
+            "publisher_fname": fName,
+            "publisher_lname": lName,
             "vacancy_id": vacancy["vacancy_id"],
             "job_type": vacancy["job_type"],
             "possition": vacancy["possition"],
-            "num_of_vacancies": vacancy["num_of_vacancies"]
+            "num_of_vacancies": vacancy["num_of_vacancies"],
+            "pdf_file_id": str(vacancy["pdf_file_id"]) if isinstance(vacancy["pdf_file_id"], ObjectId) else vacancy["pdf_file_id"]
             
         }
         vacancies.append(vacancy_data)
@@ -490,18 +501,23 @@ def create_new_candidate(request_data):
 def get_candidates_service(current_user):
     if current_user.get('user_type') != "HR":
         raise HTTPException(status_code=403, detail="Unauthorized, only HR can view candidates")
+
     excluded_statuses = ["approved", "rejected"]
     candidates = []
+    
     for candidate in collection_new_candidate.find({"status": {"$nin": excluded_statuses}}).sort("score", -1):
-        candidate_data = {
-            "c_id": candidate["c_id"],
-            "email": candidate["email"],
-            "name": candidate["name"],
-            "score": candidate["score"],
-            "cv": candidate["cv"],
-            "vacancy_id": candidate["vacancy_id"],
-        }
-        candidates.append(candidate_data)
+        vacancy = collection_add_vacancy.find_one({"vacancy_id": candidate["vacancy_id"]})
+        if vacancy:
+            candidate_data = {
+                "c_id": candidate["c_id"],
+                "email": candidate["email"],
+                "name": candidate["name"],
+                "score": candidate["score"],
+                "cv": candidate["cv"],
+                "vacancy": vacancy.get("possition")
+            }
+            candidates.append(candidate_data)
+    
     return candidates
 
 def update_candidate_status(c_id, status_data, current_user):
@@ -599,7 +615,7 @@ def get_user_details(user):
     else:
         raise HTTPException(status_code=404, detail="User not found")
 
-async def get_user_details(collection_user: Collection, user_email: str) -> dict:
+async def get_user_detail(collection_user: Collection, user_email: str) -> dict:
     try:
         user = collection_user.find_one({"user_email": user_email}) 
         if user:
@@ -615,7 +631,7 @@ async def get_user_details(collection_user: Collection, user_email: str) -> dict
         raise HTTPException(status_code=500, detail="Failed to retrieve user details")
 
 
-async def create_user_leave_request(request_data, current_user_details):
+async def create_employee_leave_request(request_data, current_user_details):
     last_leave_request = collection_add_leave_request.find_one(sort=[("_id", -1)])
     last_id = last_leave_request["leave_id"] if last_leave_request else "L000"
     last_seq = int(last_id[1:])
@@ -647,6 +663,41 @@ async def create_user_leave_request(request_data, current_user_details):
         return {"message": "Leave request created successfully"}
     else:
         raise HTTPException(status_code=404, detail="User not found")
+
+
+async def create_manager_leave_request(request_data, current_user_details):
+    last_leave_request = collection_add_leave_request.find_one(sort=[("_id", -1)])
+    last_id = last_leave_request["leave_id"] if last_leave_request else "L000"
+    last_seq = int(last_id[1:])
+    new_seq = last_seq + 1
+    leave_id = f"B{new_seq:03d}"
+
+    if current_user_details:
+        # Calculate remaining leaves dynamically
+        remaining_leaves = await calculate_managers_leave_difference(current_user_details)
+
+        leave_request_data = {
+            "leave_id": leave_id,
+            "user_type": current_user_details.get('user_type'),
+            "user_email": current_user_details.get("user_email"),
+            "user_name": current_user_details.get("name"),
+            "leaveType": request_data.leaveType,
+            "startDate": request_data.startDate,
+            "dayCount": request_data.dayCount,
+            "submitdate": request_data.submitdate,
+            "submitdatetime": request_data.submitdatetime,
+            "status": "pending",
+            "remaining_sick_leave": remaining_leaves.get("SickLeaveCount"),
+            "remaining_annual_leave": remaining_leaves.get("AnnualLeaveCount"),
+            "remaining_casual_leave": remaining_leaves.get("CasualLeaveCount")
+        }
+
+        # Insert the leave request into the database
+        collection_add_leave_request.insert_one(leave_request_data)
+        return {"message": "Leave request created successfully"}
+    else:
+        raise HTTPException(status_code=404, detail="User not found")
+
 
 async def get_current_user_details(current_user_email: str = Depends(get_current_user)):
     user_details = await get_user_details(collection_user, current_user_email["user_email"])
@@ -703,7 +754,7 @@ def pass_employee_leave_count(current_user_details):
     return e_leave_count
 
 
-def pass_manager_leave_count(current_user_details):
+def pass_managers_leave_count(current_user_details):
     m_leave_count = []
     latest_leave_count = collection_add_manager_leave_count.find().sort("submitdate", DESCENDING).limit(1)
     
@@ -741,6 +792,38 @@ def get_user_total_leave_days(current_user_details):
             leave_counts[leave_type] = 0
 
     return {"user_email": user_email, "leave_counts": leave_counts}
+
+
+async def calculate_managers_leave_difference(current_user_details: dict) -> dict:
+    pass_leave_count = await pass_managers_leave_request(current_user_details)
+    total_leave_days = await get_total_leave_days(current_user_details)
+    
+    difference = {}
+
+    # Convert counts to integers before calculating differences
+    pass_sick_leave_count = int(pass_leave_count[0]["sickLeaveCount"])
+    pass_annual_leave_count = int(pass_leave_count[0]["annualLeaveCount"])
+    pass_casual_leave_count = int(pass_leave_count[0]["casualLeaveCount"])
+
+    total_sick_leave_count = total_leave_days["leave_counts"].get("Sick Leave", 0)
+    total_annual_leave_count = total_leave_days["leave_counts"].get("Annual Leave", 0)
+    total_casual_leave_count = total_leave_days["leave_counts"].get("Casual Leave", 0)
+
+    # Calculate differences
+    difference["SickLeaveCount"] = pass_sick_leave_count - total_sick_leave_count
+    difference["AnnualLeaveCount"] = pass_annual_leave_count - total_annual_leave_count
+    difference["CasualLeaveCount"] = pass_casual_leave_count - total_casual_leave_count
+
+    return difference
+
+# async def get_current_user_details():
+
+# async def pass_managers_leave_request(current_user_details: dict):
+
+# async def get_total_leave_days(current_user_details: dict):
+
+async def pass_managers_leave_request(current_user_details: dict = Depends(get_current_user_details)):
+    return pass_managers_leave_count(current_user_details)
 
 
 def get_user_leave_request(current_user_details):
@@ -1314,7 +1397,7 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
         c_id = f"C{new_seq:03d}"
 
         # Fetch job details based on vacancy_id
-        job_details = collection_job_vacancies.find_one({"vacancy_id": vacancy_id})
+        job_details = collection_add_vacancy.find_one({"vacancy_id": vacancy_id})
         if not job_details:
             raise HTTPException(status_code=404, detail="Vacancy ID not found")
 
@@ -1328,7 +1411,7 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
             email=email,
             contact_number=contact_number,
             cv=str(cv_id),  # Store the CV file's ObjectId
-            job_title=job_details.get("job_title"),
+            job_title=job_details.get("possition"),
             job_type=job_details.get("job_type"),
             work_mode=job_details.get("work_mode"),
             score=" "
@@ -1340,4 +1423,32 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail="Failed to create job application. Please try again.")
+    
+def download_vacancy_pdf(pdf_file_id, fs):
+    try:
+        # Retrieve the file from GridFS
+        file = fs.get(ObjectId(pdf_file_id))
+        if file is None:
+            raise HTTPException(status_code=404, detail="pdf not found")
+        # Return the file content as a StreamingResponse with the original filename
+        return StreamingResponse(file, media_type="application/octet-stream", headers={"Content-Disposition": f"attachment; filename={file.filename}"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
+async def get_all_vacancies_service() -> list:
+    try:
+        # Filtering vacancies with publish_status: approved
+        vacancies = collection_add_vacancy.find({"publish_status": "approved"})
+        vacancies_list = []
+        for vacancy in vacancies:
+            vacancies_list.append({
+                "vacancy_id": vacancy["vacancy_id"],
+                "job_type": vacancy["job_type"],
+                "possition": vacancy["possition"],
+                "work_mode": vacancy["work_mode"],
+                "pdf_file_id": str(vacancy["pdf_file_id"]) if "pdf_file_id" in vacancy else None
+            })
+        return vacancies_list
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to retrieve vacancies details")
