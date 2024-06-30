@@ -1428,3 +1428,13 @@ async def get_all_vacancies_service() -> list:
         print(e)
         raise HTTPException(status_code=500, detail="Failed to retrieve vacancies details")
 
+
+def delete_job_vacancy(vacancy_id: str):
+    try:
+        result = collection_add_vacancy.delete_one({"vacancy_id": vacancy_id})
+        return result
+
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to delete vacancy")
+
