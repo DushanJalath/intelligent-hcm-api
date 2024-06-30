@@ -1306,7 +1306,7 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
         c_id = f"C{new_seq:03d}"
 
         # Fetch job details based on vacancy_id
-        job_details = collection_job_vacancies.find_one({"vacancy_id": vacancy_id})
+        job_details = collection_add_vacancy.find_one({"vacancy_id": vacancy_id})
         if not job_details:
             raise HTTPException(status_code=404, detail="Vacancy ID not found")
 
@@ -1320,7 +1320,7 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
             email=email,
             contact_number=contact_number,
             cv=str(cv_id),  # Store the CV file's ObjectId
-            job_title=job_details.get("job_title"),
+            job_title=job_details.get("possition"),
             job_type=job_details.get("job_type"),
             work_mode=job_details.get("work_mode"),
         )
@@ -1332,9 +1332,7 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
         print(e)
         raise HTTPException(status_code=500, detail="Failed to create job application. Please try again.")
     
-def download_vacancy_pdf(pdf_file_id, fs, current_user):
-    if current_user.get('user_type') not in ["HR", "Manager"]:
-        raise HTTPException(status_code=403, detail="Unauthorized, only HR can download CVs")
+def download_vacancy_pdf(pdf_file_id, fs):
     try:
         # Retrieve the file from GridFS
         file = fs.get(ObjectId(pdf_file_id))
@@ -1344,4 +1342,21 @@ def download_vacancy_pdf(pdf_file_id, fs, current_user):
         return StreamingResponse(file, media_type="application/octet-stream", headers={"Content-Disposition": f"attachment; filename={file.filename}"})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+async def get_all_vacancies_service() -> list:
+    try:
+        vacancies = collection_add_vacancy.find()
+        vacancies_list = []
+        for vacancy in vacancies:
+            vacancies_list.append({
+                "vacancy_id": vacancy["vacancy_id"],
+                "job_type": vacancy["job_type"],
+                "possition": vacancy["possition"],
+                "work_mode": vacancy["work_mode"],
+                "pdf_file_id": str(vacancy["pdf_file_id"]) if "pdf_file_id" in vacancy else None
+            })
+        return vacancies_list
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to retrieve vacancies details")
 
