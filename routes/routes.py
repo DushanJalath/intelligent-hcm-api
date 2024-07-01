@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Res
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse,RedirectResponse
 from datetime import timedelta
-from models import TimeReportQuery, EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount,ContactUs,ContactUsResponse
+from models import TimeReportQuery, EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount,Interview,ContactUs,ContactUsResponse
 from utils import get_current_user
 from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from gridfs import GridFS
@@ -66,7 +66,10 @@ from services import (
     delete_job_vacancy,
     create_contact_us_entry,
     update_hr_contact_status
+    get_interviews_service,
+    add_interview_service
 )
+
 from rag import run_conversation
 from pymongo import DESCENDING
 
@@ -361,6 +364,15 @@ async def parse_cv_and_update_score(c_id: str):
 
     except Exception as e:
         return {"error": f"Failed to parse CV and update score: {str(e)}"}, 500
+##add Interviews
+@router.post("/add_interview")
+def add_interview(interview_data:Interview,current_user:User=Depends(get_current_user)):
+    return add_interview_service(interview_data,current_user)  
+
+##get Interviews
+@router.get("/get_interviews")
+def get_interviews(current_user: User = Depends(get_current_user)):
+    return get_interviews_service(current_user)
 
 
 @router.post("/contact_us")
