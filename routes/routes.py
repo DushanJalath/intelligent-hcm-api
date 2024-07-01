@@ -64,6 +64,8 @@ from services import (
     get_all_vacancies_service,
     calculate_managers_leave_difference,
     delete_job_vacancy,
+    get_all_employee_timereporting_service,
+    get_all_manager_timereporting_service
     get_interviews_service,
     add_interview_service
 )
@@ -370,6 +372,14 @@ def add_interview(interview_data:Interview,current_user:User=Depends(get_current
 @router.get("/get_interviews")
 def get_interviews(current_user: User = Depends(get_current_user)):
     return get_interviews_service(current_user)
+
+@router.get("/employees_timereporting")
+async def get_all_employee_timereporting():
+    return await get_all_employee_timereporting_service()
+
+@router.get("/managers_timereporting")
+async def get_all_manager_timereporting():
+    return await get_all_manager_timereporting_service()
 
 
 
