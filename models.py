@@ -45,8 +45,7 @@ class OT_Work_Hours(BaseModel):
     u_id:str
 
 class Bills(BaseModel):
-    u_id:str
-    amount:float
+    amount:str
     category:str
     storename:str
     Date:str
