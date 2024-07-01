@@ -66,7 +66,7 @@ async def create_new_user(user: User, file: UploadFile) -> UserResponse:
         raise HTTPException(status_code=400, detail="Only PNG and JPG files are allowed.")
 
     bucket_name = "pdf_save"
-    credentials_path = "D:/BSc Hons. in AI/Level 2 Sem 2/CM2900 - Industry Based AI Software Project/Codes/intelligent-hcm-api/t.json"
+    credentials_path = "t.json"
     client = storage.Client.from_service_account_json(credentials_path)
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(file.filename)
@@ -1269,7 +1269,7 @@ def get_interviews_service(current_user):
         raise HTTPException(status_code=403, detail="Unauthorized, only HR can view candidates")
     excluded_statuses = ["approved"]
     interviews = []
-    for interview in collection_interviews.find({"status": {"$nin": excluded_statuses}}).sort("score",-1):
+    for interview in collection_interviews.find({"status": {"$nin": excluded_statuses}}).sort("i_id",1):
         interview_data = {
             "i_id": interview["i_id"],
             "c_id": interview["c_id"],
@@ -1415,7 +1415,8 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
             job_title=job_details.get("possition"),
             job_type=job_details.get("job_type"),
             work_mode=job_details.get("work_mode"),
-            score=" "
+            score=" ",
+            status="pending"
         )
         collection_job_applications.insert_one(job_application.dict())
 
