@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Res
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse,RedirectResponse
 from datetime import timedelta
-from models import TimeReportQuery, EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount,Interview
+from models import TimeReportQuery, EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount,Interview,ContactUs,ContactUsResponse
 from utils import get_current_user
 from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from gridfs import GridFS
 from bson.objectid import ObjectId
 from gridfs import GridFS
 from typing import List
-from database import collection_bills,collection_user,fs
+from database import collection_bills,collection_user,fs,collection_contact_us
 from services import (
     login_user,
     refresh_tokens,
@@ -64,13 +64,16 @@ from services import (
     get_all_vacancies_service,
     calculate_managers_leave_difference,
     delete_job_vacancy,
+    create_contact_us_entry,
+    update_hr_contact_status,
     get_all_employee_timereporting_service,
-    get_all_manager_timereporting_service
+    get_all_manager_timereporting_service,
     get_interviews_service,
     add_interview_service
 )
 
 from rag import run_conversation
+from pymongo import DESCENDING
 
 router = APIRouter()
 
@@ -382,10 +385,19 @@ async def get_all_manager_timereporting():
     return await get_all_manager_timereporting_service()
 
 
+@router.post("/contact_us")
+def contact_us(request_data: ContactUs):
+    return create_contact_us_entry(request_data)
 
+
+@router.get("/contact_us", response_model=List[ContactUsResponse])
+def get_all_contact_entries():
+    contacts = list(collection_contact_us.find().sort("_id", DESCENDING))
+    for contact in contacts:
+        contact["_id"] = str(contact["_id"])
+    return contacts
 
    
-
-
-
-
+@router.put("/contact_us/{contact_id}")
+async def update_contact_status(contact_id: str):
+    return update_hr_contact_status(contact_id)
