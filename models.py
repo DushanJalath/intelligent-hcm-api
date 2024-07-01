@@ -174,6 +174,7 @@ class JobApplicatons(BaseModel):
     job_type: str
     work_mode: str
     score:str
+    status: str
 
 
 class ContactUs(BaseModel):

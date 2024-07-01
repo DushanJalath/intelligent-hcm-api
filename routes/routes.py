@@ -65,7 +65,7 @@ from services import (
     calculate_managers_leave_difference,
     delete_job_vacancy,
     create_contact_us_entry,
-    update_hr_contact_status
+    update_hr_contact_status,
     get_interviews_service,
     add_interview_service
 )
