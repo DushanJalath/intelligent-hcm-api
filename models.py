@@ -45,8 +45,7 @@ class OT_Work_Hours(BaseModel):
     u_id:str
 
 class Bills(BaseModel):
-    u_id:str
-    amount:float
+    amount:str
     category:str
     storename:str
     Date:str
@@ -174,4 +173,18 @@ class JobApplicatons(BaseModel):
     job_type: str
     work_mode: str
     score:str
-    status:str
+    status: str
+
+
+class ContactUs(BaseModel):
+    user_email: str
+    user_contact_number: str
+    feedback: str
+
+
+class ContactUsResponse(BaseModel):
+    contact_id: str
+    user_email: str
+    user_contact_number: str
+    feedback: str
+    status: str

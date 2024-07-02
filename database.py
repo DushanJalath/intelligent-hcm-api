@@ -23,6 +23,7 @@ collection_leaves=database["leaves"]
 collection_remaining_leaves=database["remaining_leaves"]
 collection_working_hours=database["working_hours"]
 collection_interviews=database["interviews"]
+collection_contact_us=database["ContactUs"]
 
 
 fs = GridFS(database,collection="candidate_pdfs")
