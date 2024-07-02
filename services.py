@@ -18,7 +18,6 @@ from reportlab.lib.units import inch
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
-from cv_parser import process_resume
 import PyPDF2
 import pdfplumber
 import concurrent.futures 
@@ -33,6 +32,12 @@ from starlette.responses import JSONResponse,StreamingResponse
 from reportlab.lib.utils import ImageReader
 from PIL import Image
 import json
+import spacy
+from sentence_transformers import SentenceTransformer
+from cv_parser_new import  process_resume_and_job
+
+parsing_model=spacy.load(r"cv_parsing_model")
+sen_model=SentenceTransformer('bert-base-nli-mean-tokens')
 
 
 def get_gridfs():
@@ -505,18 +510,18 @@ def get_candidates_service(current_user):
     excluded_statuses = ["approved", "rejected"]
     candidates = []
     
-    for candidate in collection_new_candidate.find({"status": {"$nin": excluded_statuses}}).sort("score", -1):
-        vacancy = collection_add_vacancy.find_one({"vacancy_id": candidate["vacancy_id"]})
-        if vacancy:
-            candidate_data = {
-                "c_id": candidate["c_id"],
-                "email": candidate["email"],
-                "name": candidate["name"],
-                "score": candidate["score"],
-                "cv": candidate["cv"],
-                "vacancy": vacancy.get("possition")
-            }
-            candidates.append(candidate_data)
+    for candidate in collection_job_applications.find({"status": {"$nin": excluded_statuses}}).sort("score", -1):
+        '''vacancy = collection_job_vacancies.find_one({"vacancy_id": candidate["job_title"]})
+        if vacancy:'''
+        candidate_data = {
+            "c_id": candidate["c_id"],
+            "email": candidate["email"],
+            "name": candidate["name"],
+            "score": candidate["score"],
+            "cv": candidate["cv"],
+            #"vacancy": candidate["job_title"]
+        }
+        candidates.append(candidate_data)
     
     return candidates
 
@@ -1209,10 +1214,9 @@ async def parse_cv_and_store(c_id: str):
             cv_text=cv_future.result()
             jd_text=jd_future.result()
 
-        status,matching_score=process_resume(cv_text,jd_text)
+        matching_score=process_resume_and_job(cv_text,jd_text,parsing_model,sen_model)
 
-        if status != "Success":
-            return status, None
+        
         collection_job_applications.update_one({"c_id": c_id}, {"$set": {"score": float(matching_score)}})
         return {"Success",matching_score}
     except FileNotFoundError:
@@ -1283,9 +1287,7 @@ def get_interviews_service(current_user):
         interviews.append(interview_data)
     return interviews
 
-async def download_candidate_cv_interview(cv_id, fs,current_user):
-    if current_user.get('user_type') not in ["HR", "Manager"]:
-        raise HTTPException(status_code=403, detail="Unauthorized, only HR can download CVs")
+async def download_candidate_cv_interview(cv_id, fs):
     try:
         # Retrieve the file from GridFS
         file = fs.get(ObjectId(cv_id))
@@ -1296,8 +1298,9 @@ async def download_candidate_cv_interview(cv_id, fs,current_user):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-async def fetch_interviewer_email_details(c_id: str, current_user, base_url: str):
+async def fetch_interviewer_email_details(c_id: str, base_url: str):
     interview = collection_interviews.find_one({"c_id": c_id})
+    job=collection_job_applications.find_one({"c_id":c_id})
     if interview is None:
         raise HTTPException(status_code=404, detail="Interview not found")
     
@@ -1314,11 +1317,12 @@ async def fetch_interviewer_email_details(c_id: str, current_user, base_url: str
    
     details = {
         "email": email,
+        "job_title":job.get("job_title"),
         "name": interviewer.get("user_name"),
         "date": interview.get("date"),
         "time": interview.get("time"),
         "venue": interview.get("venue"),
-        "cv": f"{base_url}/download_cv/{cv_id}"
+        "cv": f"{base_url}/download_cv_interviewer/{cv_id}"
     }
 
     return details
@@ -1397,7 +1401,7 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
         c_id = f"C{new_seq:03d}"
 
         # Fetch job details based on vacancy_id
-        job_details = collection_add_vacancy.find_one({"vacancy_id": vacancy_id})
+        job_details = collection_job_vacancies.find_one({"vacancy_id": vacancy_id})
         if not job_details:
             raise HTTPException(status_code=404, detail="Vacancy ID not found")
 
@@ -1411,10 +1415,10 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
             email=email,
             contact_number=contact_number,
             cv=str(cv_id),  # Store the CV file's ObjectId
-            job_title=job_details.get("possition"),
+            job_title=job_details.get("job_title"),
             job_type=job_details.get("job_type"),
             work_mode=job_details.get("work_mode"),
-            score=" ",
+            score=0.0,
             status="pending"
         )
         collection_job_applications.insert_one(job_application.dict())

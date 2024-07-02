@@ -1,4 +1,4 @@
-import yaml,os
+"""import yaml,os
 from PyPDF2 import PdfReader
 from langchain_openai import ChatOpenAI
 from langchain_community.embeddings import HuggingFaceBgeEmbeddings
@@ -101,4 +101,4 @@ def run_conversation(message):
     return response
 
 # Initialize the conversation chain
-init_conversation_chain()
+init_conversation_chain()"""

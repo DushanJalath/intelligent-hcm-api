@@ -173,5 +173,5 @@ class JobApplicatons(BaseModel):
     job_title: str
     job_type: str
     work_mode: str
-    score:str
+    score:float
     status:str

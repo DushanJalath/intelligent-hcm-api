@@ -6,7 +6,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from bson import ObjectId
 from pymongo import MongoClient
 from gridfs import GridFS
-from database import collection_job_vacancies,collection_job_applications
+
 
 def process_resume(cv_text,jd_text):
     # Connect to MongoDB

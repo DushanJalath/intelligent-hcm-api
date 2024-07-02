@@ -6,13 +6,17 @@ from fastapi import Depends
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 from config import SECRET_KEY, ALGORITHM
-from database import collection_user
+from database import collection_user,collection_emp_time_rep,collection_working_hours
 from fastapi.security import OAuth2PasswordBearer
+from apscheduler.schedulers.background import BackgroundScheduler
 import requests
 import PIL.Image
 import google.generativeai as genai
 from io import BytesIO
+import logging
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 def create_access_token(data: dict, expires_delta: timedelta):
     to_encode = data.copy()
@@ -184,3 +188,35 @@ async def extract_text_from_images(images):
 def convert_object_id(doc):
     doc['_id'] = str(doc['_id'])
     return doc
+
+def update_daily_ot():
+    today=datetime.now().strftime('%Y-%m-%d')
+    emp_records=collection_emp_time_rep.find({"date":today})
+    total_working_time={}
+    for emp in emp_records:
+        emp_email=emp.get("user_email")
+        working_time= emp.get("totalWorkMilliSeconds")
+        if emp_email in total_working_time:
+            total_working_time[emp_email] += working_time
+        else:
+            total_working_time[emp_email] = working_time
+    
+    ot_hours={}
+
+    for emp_email,tot_working in total_working_time.items():
+            if tot_working>=28800000:
+                ot_hours[emp_email]=(tot_working-28800000)/3600000
+            else:
+                ot_hours[emp_email]=0
+
+    for emp_email,ot in ot_hours.items():
+        collection_working_hours.update_one({"u_email":emp_email},{"$inc":{"totalOT":ot}})
+
+    
+    logger.info(f"Updated leave prediction data for {today}.")
+
+def schedule_daily_ot_update():
+    schedular=BackgroundScheduler()
+    schedular.add_job(update_daily_ot,'cron',hour=23,minute=59)
+    schedular.start()
+    logger.info("Scheduled daily oy update at 23.59")
