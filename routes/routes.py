@@ -2,14 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Res
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse,RedirectResponse
 from datetime import timedelta
-from models import TimeReportQuery, EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount,Interview
+from models import TimeReportQuery, EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount,Interview,ContactUs,ContactUsResponse
 from utils import get_current_user
 from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from gridfs import GridFS
 from bson.objectid import ObjectId
 from gridfs import GridFS
 from typing import List
-from database import collection_bills,collection_user,fs
+from database import collection_bills,collection_user,fs,collection_contact_us
 from services import (
     login_user,
     refresh_tokens,
@@ -64,14 +64,22 @@ from services import (
     get_all_vacancies_service,
     calculate_managers_leave_difference,
     delete_job_vacancy,
+    create_contact_us_entry,
+    update_hr_contact_status,
+    get_all_employee_timereporting_service,
+    get_all_manager_timereporting_service,
     get_interviews_service,
     add_interview_service,
     update_candidate_response,
     fetch_interviewer_email_details,
     download_candidate_cv_interview,
+    get_employee_attendance_calender_service,
+    get_employee_weekly_workhour_summary_service,
+    get_employee_yearly_workhour_summary_service
 )
 
 from rag import run_conversation
+from pymongo import DESCENDING
 
 router = APIRouter()
 
@@ -390,6 +398,9 @@ async def response_success():
 def get_interviews(current_user: User = Depends(get_current_user)):
     return get_interviews_service(current_user)
 
+@router.get("/employees_timereporting")
+async def get_all_employee_timereporting():
+    return await get_all_employee_timereporting_service()
 
 @router.get("/interviewer_email_details")
 async def interviewer_email_details(c_id:str,request:Request):
@@ -401,10 +412,37 @@ async def interviewer_email_details(c_id:str,request:Request):
 async def download_cv_interviewer(cv_id:str,fs:GridFS=Depends(get_gridfs)):
     return await download_candidate_cv_interview(cv_id,fs)
 
+@router.get("/managers_timereporting")
+async def get_all_manager_timereporting():
+    return await get_all_manager_timereporting_service()
 
+
+
+@router.post("/contact_us")
+def contact_us(request_data: ContactUs):
+    return create_contact_us_entry(request_data)
+
+
+@router.get("/contact_us", response_model=List[ContactUsResponse])
+def get_all_contact_entries():
+    contacts = list(collection_contact_us.find().sort("_id", DESCENDING))
+    for contact in contacts:
+        contact["_id"] = str(contact["_id"])
+    return contacts
 
    
+@router.put("/contact_us/{contact_id}")
+async def update_contact_status(contact_id: str):
+    return update_hr_contact_status(contact_id)
 
+@router.get("/employee_view_attendance_calender")
+async def get_employee_attendance_calender(current_user: User = Depends(get_current_user)):
+    return await get_employee_attendance_calender_service(current_user)
 
+@router.get("/employee_weekly_workhour_summary")
+async def get_employee_weekly_workhour_summary(current_user: User = Depends(get_current_user)):
+    return await get_employee_weekly_workhour_summary_service(current_user)
 
-
+@router.get("/employee_yearly_workhour_summary")
+async def get_employee_yearly_workhour_summary(current_user: User = Depends(get_current_user)):
+    return await get_employee_yearly_workhour_summary_service(current_user)
