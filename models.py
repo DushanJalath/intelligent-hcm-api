@@ -23,6 +23,7 @@ class User(BaseModel):
     user_pw:str
     user_type:str
     user_role:str 
+    manager: Optional[str] = None
 
 class add_vacancy(BaseModel):
     possition: str
@@ -189,3 +190,7 @@ class ContactUsResponse(BaseModel):
     user_contact_number: str
     feedback: str
     status: str
+
+class Manager(BaseModel):
+    user_email:str
+    fName:str
