@@ -400,7 +400,6 @@ def get_all_contact_entries():
         contact["_id"] = str(contact["_id"])
     return contacts
 
-   
 @router.put("/contact_us/{contact_id}")
 async def update_contact_status(contact_id: str):
     return update_hr_contact_status(contact_id)
