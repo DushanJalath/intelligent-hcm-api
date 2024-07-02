@@ -71,7 +71,7 @@ from services import (
     download_candidate_cv_interview,
 )
 
-#from rag import run_conversation
+from rag import run_conversation
 
 router = APIRouter()
 
@@ -195,11 +195,11 @@ async def empSubmit(form:EmpSubmitForm):
 @router.post('/empTimeReport')
 async def empTimeRep(data:EmpTimeRep,current_user: User = Depends(get_current_user)):
     return empTimeReport(data,current_user)
-'''
+
 @router.post("/get_response")
 async def get_response(request: UserMessage):
     response = run_conversation(request.message)
-    return JSONResponse({"response": response})'''
+    return JSONResponse({"response": response})
 
 @router.post("/total-work-milliseconds")
 async def get_total_work_milliseconds(query: TimeReportQuery,current_user: User = Depends(get_current_user)):
