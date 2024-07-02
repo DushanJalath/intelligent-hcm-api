@@ -1,6 +1,6 @@
 # services.py
-from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request,collection_add_employee_leave_count,collection_add_manager_leave_count,collection_job_vacancies,grid_fs,collection_job_applications
-from models import UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons
+from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request,collection_add_employee_leave_count,collection_add_manager_leave_count,collection_job_vacancies,grid_fs,collection_job_applications,collection_contact_us
+from models import UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons,ContactUs
 from utils import convert_object_id, hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images,get_current_user
 from datetime import timedelta
 from typing import List
@@ -35,9 +35,14 @@ import json
 import spacy
 from sentence_transformers import SentenceTransformer
 from cv_parser_new import  process_resume_and_job
+from collections import defaultdict
+from datetime import datetime
+from typing import Dict
+
 
 parsing_model=spacy.load(r"cv_parsing_model")
 sen_model=SentenceTransformer('bert-base-nli-mean-tokens')
+
 
 
 def get_gridfs():
@@ -70,7 +75,7 @@ async def create_new_user(user: User, file: UploadFile) -> UserResponse:
         raise HTTPException(status_code=400, detail="Only PNG and JPG files are allowed.")
 
     bucket_name = "pdf_save"
-    credentials_path = "D:/BSc Hons. in AI/Level 2 Sem 2/CM2900 - Industry Based AI Software Project/Codes/intelligent-hcm-api/t.json"
+    credentials_path = "t.json"
     client = storage.Client.from_service_account_json(credentials_path)
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(file.filename)
@@ -1468,3 +1473,165 @@ def delete_job_vacancy(vacancy_id: str):
         print(e)
         raise HTTPException(status_code=500, detail="Failed to delete vacancy")
  
+
+
+def create_contact_us_entry(request_data):
+    last_contact = collection_contact_us.find_one(sort=[("_id", -1)])
+    last_id = last_contact["contact_id"] if last_contact else "CU000"
+    last_seq = int(last_id[2:])
+    new_seq = last_seq + 1
+    contact_id = f"CU{new_seq:03d}"
+    data = {
+        "contact_id": contact_id,
+        "user_email": request_data.user_email,
+        "user_contact_number": request_data.user_contact_number,
+        "feedback": request_data.feedback,
+        "status": "pending"
+    }
+    collection_contact_us.insert_one(data)
+    return {"message": "Contact entry created successfully"}
+
+
+def update_hr_contact_status(contact_id):
+    existing_contact = collection_contact_us.find_one({"contact_id": contact_id})
+    if not existing_contact:
+        raise HTTPException(status_code=404, detail="Contact not found")
+    collection_contact_us.update_one({"contact_id": contact_id}, {"$set": {"status": "read"}})
+    return {"message": f"Contact {contact_id} status updated to 'read' successfully"}
+
+async def get_all_employee_timereporting_service():
+    total_work_time = defaultdict(int)
+    time_reports = collection_emp_time_rep.find()
+    
+    for report in time_reports:
+        employee_email = report.get("user_email")
+        if employee_email:
+            employee = collection_user.find_one({"user_email": employee_email, "user_type": "Employee"}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+            if employee:
+                total_work_time[employee_email] += report.get("totalWorkMilliSeconds")
+    
+    results = []
+    for employee_email, total_milliseconds in total_work_time.items():
+        employee = collection_user.find_one({"user_email": employee_email}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+        if employee:
+            employee_name = employee.get("user_name")
+            total_seconds = total_milliseconds // 1000
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = (total_seconds % 3600) % 60
+            hms_string = f"Total hours {hours:02}:{minutes:02}:{seconds:02}"
+            report_with_name = {
+                "name": employee_name,
+                "details": hms_string,
+                "dp": employee.get("profile_pic_url")
+            }
+            results.append(report_with_name)
+    return results
+
+
+async def get_all_manager_timereporting_service():
+    total_work_time = defaultdict(int)
+    time_reports = collection_emp_time_rep.find()
+    
+    for report in time_reports:
+        employee_email = report.get("user_email")
+        if employee_email:
+            employee = collection_user.find_one({"user_email": employee_email, "user_type": "Manager"}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+            if employee:
+                total_work_time[employee_email] += report.get("totalWorkMilliSeconds")
+    
+    results = []
+    for employee_email, total_milliseconds in total_work_time.items():
+        employee = collection_user.find_one({"user_email": employee_email}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+        if employee:
+            employee_name = employee.get("user_name")
+            total_seconds = total_milliseconds // 1000
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = (total_seconds % 3600) % 60
+            hms_string = f"Total hours {hours:02}:{minutes:02}:{seconds:02}"
+            report_with_name = {
+                "name": employee_name,
+                "details": hms_string,
+                "dp": employee.get("profile_pic_url")
+            }
+            results.append(report_with_name)
+    return results
+
+async def get_employee_attendance_calender_service(current_user):
+    user_email = current_user.get("user_email")
+    documents = collection_emp_time_rep.find({"user_email": user_email})
+    if not documents:
+        raise HTTPException(status_code=404, detail="User not found")
+    formatted_dates = []
+    for doc in documents:
+        date_str = doc.get("date")
+        if date_str:
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+            formatted_date = {
+                "day": date_obj.day,
+                "month": date_obj.month,
+                "year": date_obj.year
+            }
+            formatted_dates.append(formatted_date)
+
+    return formatted_dates
+
+async def get_employee_weekly_workhour_summary_service(current_user):
+    user_email = current_user.get("user_email")
+    documents = collection_emp_time_rep.find({"user_email": user_email})
+    weekly_hours: Dict[tuple, float] = {}
+
+    for doc in documents:
+        date = datetime.strptime(doc["date"], "%Y-%m-%d")
+        year, iso_week_num, _ = date.isocalendar()
+        month = date.month
+        first_day_of_month = datetime(year, month, 1)
+        _, first_iso_week_num, _ = first_day_of_month.isocalendar()
+        if first_iso_week_num == 1 and first_day_of_month.month == 1:
+            first_iso_week_num = 0
+
+        week_num = iso_week_num - first_iso_week_num + 1
+        if week_num == 5:
+            week_num = 4
+        week_key = (year, week_num, month)
+
+        hours = doc["totalWorkMilliSeconds"] / 3600000.0
+        if week_key in weekly_hours:
+            weekly_hours[week_key] += hours
+        else:
+            weekly_hours[week_key] = hours
+    response1 = [
+        {"week": week_num, "month": month, "year": year, "totalHours": round(hours, 2)}
+        for (year, week_num, month), hours in weekly_hours.items()
+        if 1 <= week_num <= 4
+    ]
+    today = datetime.today().strftime("%Y-%m-%d")
+    document = collection_emp_time_rep.find({"user_email": user_email, "date": today})
+    total_seconds = sum(doc["totalWorkMilliSeconds"] for doc in document)/1000
+    hours = int(total_seconds // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+    seconds = int(total_seconds % 60)
+    response2 = f"{hours:02}:{minutes:02}:{seconds:02}"
+    response = {
+        "weekly_summary": response1,
+        "total_hours_today": response2
+    }
+    return response
+
+async def get_employee_yearly_workhour_summary_service(current_user):
+    user_email = current_user.get("user_email")
+    documents = collection_emp_time_rep.find({"user_email": user_email})
+    monthly_hours = defaultdict(float)
+    for doc in documents:
+        date = datetime.strptime(doc["date"], "%Y-%m-%d")
+        month = date.month
+        year = date.year
+        total_hours = doc["totalWorkMilliSeconds"] / 3600000.0
+        monthly_hours[(month, year)] += total_hours
+    response = [
+        {"month": month, "year": year, "totalHours": round(hours, 2)}
+        for (month, year), hours in monthly_hours.items()
+    ]
+
+    return response
