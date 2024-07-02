@@ -65,9 +65,9 @@ from services import (
     calculate_managers_leave_difference,
     delete_job_vacancy,
     get_all_employee_timereporting_service,
-    get_all_manager_timereporting_service
-    get_interviews_service,
-    add_interview_service
+    get_all_manager_timereporting_service,
+    add_interview_service,
+    get_interviews_service
 )
 
 from rag import run_conversation
