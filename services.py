@@ -34,6 +34,8 @@ from reportlab.lib.utils import ImageReader
 from PIL import Image
 import json
 from collections import defaultdict
+from datetime import datetime
+from typing import Dict
 
 
 def get_gridfs():
@@ -1549,3 +1551,81 @@ async def get_all_manager_timereporting_service():
             }
             results.append(report_with_name)
     return results
+
+async def get_employee_attendance_calender_service(current_user):
+    user_email = current_user.get("user_email")
+    documents = collection_emp_time_rep.find({"user_email": user_email})
+    if not documents:
+        raise HTTPException(status_code=404, detail="User not found")
+    formatted_dates = []
+    for doc in documents:
+        date_str = doc.get("date")
+        if date_str:
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+            formatted_date = {
+                "day": date_obj.day,
+                "month": date_obj.month,
+                "year": date_obj.year
+            }
+            formatted_dates.append(formatted_date)
+
+    return formatted_dates
+
+async def get_employee_weekly_workhour_summary_service(current_user):
+    user_email = current_user.get("user_email")
+    documents = collection_emp_time_rep.find({"user_email": user_email})
+    weekly_hours: Dict[tuple, float] = {}
+
+    for doc in documents:
+        date = datetime.strptime(doc["date"], "%Y-%m-%d")
+        year, iso_week_num, _ = date.isocalendar()
+        month = date.month
+        first_day_of_month = datetime(year, month, 1)
+        _, first_iso_week_num, _ = first_day_of_month.isocalendar()
+        if first_iso_week_num == 1 and first_day_of_month.month == 1:
+            first_iso_week_num = 0
+
+        week_num = iso_week_num - first_iso_week_num + 1
+        if week_num == 5:
+            week_num = 4
+        week_key = (year, week_num, month)
+
+        hours = doc["totalWorkMilliSeconds"] / 3600000.0
+        if week_key in weekly_hours:
+            weekly_hours[week_key] += hours
+        else:
+            weekly_hours[week_key] = hours
+    response1 = [
+        {"week": week_num, "month": month, "year": year, "totalHours": round(hours, 2)}
+        for (year, week_num, month), hours in weekly_hours.items()
+        if 1 <= week_num <= 4
+    ]
+    today = datetime.today().strftime("%Y-%m-%d")
+    document = collection_emp_time_rep.find({"user_email": user_email, "date": today})
+    total_seconds = sum(doc["totalWorkMilliSeconds"] for doc in document)/1000
+    hours = int(total_seconds // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+    seconds = int(total_seconds % 60)
+    response2 = f"{hours:02}:{minutes:02}:{seconds:02}"
+    response = {
+        "weekly_summary": response1,
+        "total_hours_today": response2
+    }
+    return response
+
+async def get_employee_yearly_workhour_summary_service(current_user):
+    user_email = current_user.get("user_email")
+    documents = collection_emp_time_rep.find({"user_email": user_email})
+    monthly_hours = defaultdict(float)
+    for doc in documents:
+        date = datetime.strptime(doc["date"], "%Y-%m-%d")
+        month = date.month
+        year = date.year
+        total_hours = doc["totalWorkMilliSeconds"] / 3600000.0
+        monthly_hours[(month, year)] += total_hours
+    response = [
+        {"month": month, "year": year, "totalHours": round(hours, 2)}
+        for (month, year), hours in monthly_hours.items()
+    ]
+
+    return response

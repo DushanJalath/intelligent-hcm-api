@@ -69,7 +69,10 @@ from services import (
     get_all_employee_timereporting_service,
     get_all_manager_timereporting_service,
     get_interviews_service,
-    add_interview_service
+    add_interview_service,
+    get_employee_attendance_calender_service,
+    get_employee_weekly_workhour_summary_service,
+    get_employee_yearly_workhour_summary_service
 )
 
 from rag import run_conversation
@@ -401,3 +404,15 @@ def get_all_contact_entries():
 @router.put("/contact_us/{contact_id}")
 async def update_contact_status(contact_id: str):
     return update_hr_contact_status(contact_id)
+
+@router.get("/employee_view_attendance_calender")
+async def get_employee_attendance_calender(current_user: User = Depends(get_current_user)):
+    return await get_employee_attendance_calender_service(current_user)
+
+@router.get("/employee_weekly_workhour_summary")
+async def get_employee_weekly_workhour_summary(current_user: User = Depends(get_current_user)):
+    return await get_employee_weekly_workhour_summary_service(current_user)
+
+@router.get("/employee_yearly_workhour_summary")
+async def get_employee_yearly_workhour_summary(current_user: User = Depends(get_current_user)):
+    return await get_employee_yearly_workhour_summary_service(current_user)
