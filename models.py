@@ -172,8 +172,9 @@ class JobApplicatons(BaseModel):
     job_title: str
     job_type: str
     work_mode: str
-    score:str
-    status: str
+    score:float
+    status:str
+
 
 
 class ContactUs(BaseModel):

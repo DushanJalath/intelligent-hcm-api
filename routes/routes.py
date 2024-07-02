@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Response,BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Response,Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse,RedirectResponse
 from datetime import timedelta
@@ -70,6 +70,9 @@ from services import (
     get_all_manager_timereporting_service,
     get_interviews_service,
     add_interview_service,
+    update_candidate_response,
+    fetch_interviewer_email_details,
+    download_candidate_cv_interview,
     get_employee_attendance_calender_service,
     get_employee_weekly_workhour_summary_service,
     get_employee_yearly_workhour_summary_service
@@ -374,6 +377,22 @@ async def parse_cv_and_update_score(c_id: str):
 def add_interview(interview_data:Interview,current_user:User=Depends(get_current_user)):
     return add_interview_service(interview_data,current_user)  
 
+@router.get("/candidate_response")
+async def get_response(id: str, response: str):
+    # Process the response and the unique identifier
+    if response == "yes":
+        update_candidate_response(id)
+        #interviewer_details=fetch_interviewer_email_details(id)
+        #if interviewer_details:
+            #send_interviewer_email(interviewer_details)
+
+    return RedirectResponse(url="/response_success")
+
+
+@router.get("/response_success")
+async def response_success():
+    return "Your response has been sent successfully!"
+
 ##get Interviews
 @router.get("/get_interviews")
 def get_interviews(current_user: User = Depends(get_current_user)):
@@ -383,9 +402,20 @@ def get_interviews(current_user: User = Depends(get_current_user)):
 async def get_all_employee_timereporting():
     return await get_all_employee_timereporting_service()
 
+@router.get("/interviewer_email_details")
+async def interviewer_email_details(c_id:str,request:Request):
+    base_url=request.base_url
+    details= await fetch_interviewer_email_details(c_id,base_url)
+    return details
+
+@router.get("/download_cv_interviewer/{cv_id}")
+async def download_cv_interviewer(cv_id:str,fs:GridFS=Depends(get_gridfs)):
+    return await download_candidate_cv_interview(cv_id,fs)
+
 @router.get("/managers_timereporting")
 async def get_all_manager_timereporting():
     return await get_all_manager_timereporting_service()
+
 
 
 @router.post("/contact_us")
