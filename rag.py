@@ -7,13 +7,15 @@ from langchain_community.vectorstores import FAISS
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 
-with open("cadentials.yaml") as f:
-    cadentials=yaml.load(f,Loader=yaml.FullLoader)
+openai_api_key = os.getenv('OPENAI_API_KEY')
+
+if openai_api_key is None:
+    raise ValueError("OPENAI_API_KEY environment variable is not set")
 
 conversation_chain = None
 
 llm=ChatOpenAI(
-            openai_api_key=cadentials['OPENAI_API_KEY'],
+            openai_api_key=openai_api_key,
             model = 'gpt-3.5-turbo',
             temperature=0.5,
             max_tokens=500
