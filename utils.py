@@ -95,8 +95,30 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
 def extract_entities_from_text(billtext):
     url = "http://Agashinvoiceentityextractor.southindia.azurecontainer.io/extract"
     params = {"invoice": billtext}
-    response = requests.post(url, params=params)
-    return(json.loads(response.text))
+    
+    try:
+        print("Sending request with params:", params)
+        response = requests.post(url, params=params)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"Error with request: {e}")
+        return None
+    
+    try:
+        res = json.loads(response.text)
+        print("Response content:", res)
+
+        data = {
+            "storename": res['storename'],
+            "invoicenumber": res['invoicenumber'],
+            "date": res['date'],
+            "totalamount": res['totalamount']
+        }
+        return data
+    except (json.JSONDecodeError, KeyError) as e:
+        print(f"Error processing response: {e}")
+        return None
+
 
 async def fetch_and_extract_text(item):
     bill_type = item.get("bill_type")
