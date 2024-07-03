@@ -72,7 +72,9 @@ from services import (
     add_interview_service,
     get_employee_attendance_calender_service,
     get_employee_weekly_workhour_summary_service,
-    get_employee_yearly_workhour_summary_service
+    get_employee_yearly_workhour_summary_service,
+    delete_upload_bill,
+    delete_request_leave
 )
 
 from rag import run_conversation
@@ -416,3 +418,33 @@ async def get_employee_weekly_workhour_summary(current_user: User = Depends(get_
 @router.get("/employee_yearly_workhour_summary")
 async def get_employee_yearly_workhour_summary(current_user: User = Depends(get_current_user)):
     return await get_employee_yearly_workhour_summary_service(current_user)
+
+
+@router.delete("/bill/{bill_id}")
+async def delete_bill(bill_id: str):
+    try:
+        result = delete_upload_bill(bill_id)
+        
+        if result.deleted_count == 1:
+            return {"message": f"Bill with id {bill_id} deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail=f"Bill with id {bill_id} not found")
+
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to delete Bill")
+
+
+@router.delete("/leave/{leave_id}")
+async def delete_leave(leave_id: str):
+    try:
+        result = delete_request_leave(leave_id)
+        
+        if result.deleted_count == 1:
+            return {"message": f"Leave with id {leave_id} deleted successfully"}
+        else:
+            raise HTTPException(status_code=404, detail=f"Leave with id {leave_id} not found")
+
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to delete Leave")
