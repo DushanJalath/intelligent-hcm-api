@@ -1,8 +1,8 @@
 # services.py
 from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request,collection_add_employee_leave_count,collection_add_manager_leave_count,collection_job_vacancies,grid_fs,collection_job_applications,collection_contact_us
-from models import Manager,UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons,ContactUs
-from utils import convert_object_id, hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images,get_current_user
-from datetime import timedelta
+from models import Manager,UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons,ContactUs,PredictionRequest
+from utils import convert_object_id, hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images,get_current_user,create_future_data
+from datetime import timedelta,datetime
 from typing import List
 from pymongo.collection import Collection
 from bson import ObjectId
@@ -38,12 +38,15 @@ from cv_parser_new import  process_resume_and_job
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict
+from functools import lru_cache
+from fastapi.security import OAuth2PasswordRequestForm
+import asyncio
+import joblib
 import yaml
 
 
 parsing_model=spacy.load(r"cv_parsing_model")
 sen_model=SentenceTransformer('bert-base-nli-mean-tokens')
-
 
 
 def get_gridfs():
@@ -1651,6 +1654,68 @@ def get_employee_yearly_workhour_summary_service(current_user):
 
     return response
 
+@lru_cache()
+def load_model():
+    return joblib.load("rfmodel_leave.joblib")
+
+rf_model = load_model()
+
+async def login_for_access_token_service(form_data: OAuth2PasswordRequestForm):
+    user = collection_user.find_one({"user_email": form_data.username})
+    if user and verify_password(form_data.password, user['user_pw']):
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(data={"email": user['user_email']}, expires_delta=access_token_expires)
+        return {"access_token": access_token, "token_type": "bearer"}
+    raise HTTPException(status_code=401, detail="Incorrect email or password")
+
+async def predict_attendance_service(request: PredictionRequest, current_user: User):
+    if current_user.get('user_type') not in ["HR", "Manager"]:
+        raise HTTPException(status_code=403, detail="Unauthorized, only HR can predict attendance")
+    try:
+        future_data = await asyncio.to_thread(create_future_data, request.date)
+        predicted_attendance = await asyncio.to_thread(rf_model.predict, future_data)
+        predicted_attendance_rounded = int(round(predicted_attendance[0]))  # Round to nearest integer
+              
+        return {"predicted_attendance": predicted_attendance_rounded}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def predict_attendance_chart_service(request: PredictionRequest, current_user: User):
+    if current_user.get('user_type') not in ["HR", "Manager"]:
+        raise HTTPException(status_code=403, detail="Unauthorized, only HR can approve vacancies")
+    try:
+        input_date = datetime.strptime(request.date, '%m%d')
+
+        prediction_data = []
+        for i in range(1, 8):
+            next_date = (input_date + timedelta(days=i)).strftime('%m%d')
+            future_data = await asyncio.to_thread(create_future_data, next_date)
+            predicted_attendance = await asyncio.to_thread(rf_model.predict, future_data)
+            predicted_attendance_rounded = int(round(predicted_attendance[0]))  # Round to nearest integer
+            prediction_data.append({"date": next_date, "predicted_attendance": predicted_attendance_rounded})
+
+        return prediction_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def predict_result_service(current_user: User):
+    if current_user.get('user_type') not in ["HR", "Manager"]:
+        raise HTTPException(status_code=403, detail="Unauthorized, only HR can predict attendance")
+    try:
+        future_data = await asyncio.to_thread(create_future_data, datetime.now().strftime('%m%d'))
+        today_predicted_attendance = await asyncio.to_thread(rf_model.predict, future_data)
+        predicted_attendance_rounded = int(round(today_predicted_attendance[0]))  # Round to nearest integer
+        
+        Today_Total_Attendance = 180
+        total_empolyee_count = 200
+        Today_Total_Leave = total_empolyee_count - Today_Total_Attendance
+
+        Today_Predicted_Leave = total_empolyee_count - predicted_attendance_rounded
+
+        return {"Today_predicted_attendance": predicted_attendance_rounded, "Today_Total_Leave": Today_Total_Leave, "Today_Predicted_Leave": Today_Predicted_Leave, "total_empolyee_count": total_empolyee_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 async def get_managers_list():
     managers = []
     for user in collection_user.find({"user_type": "Manager"}):
@@ -1662,3 +1727,4 @@ async def get_managers_list():
     if not managers:
         raise HTTPException(status_code=404, detail="No managers found")
     return managers
+
