@@ -24,4 +24,8 @@ reportlab
 google-generativeai
 python-jose
 spacy
+pandas
+joblib
+scikit-learn
+numpy
 pdfplumber

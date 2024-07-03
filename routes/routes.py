@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Res
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse,RedirectResponse
 from datetime import timedelta
-from models import Manager, TimeReportQuery, EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount,Interview,ContactUs,ContactUsResponse
+from models import Manager, TimeReportQuery, EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount,Interview,ContactUs,ContactUsResponse,PredictionRequest
 from utils import get_current_user
 from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from gridfs import GridFS
@@ -78,7 +78,12 @@ from services import (
     get_employee_yearly_workhour_summary_service,
     get_managers_list,
     get_ot_data_employees,
-    get_ot_data_manager
+    get_ot_data_manager,
+    predict_attendance_service,
+    predict_attendance_chart_service,
+    predict_result_service,
+    get_managers_list
+
 )
 
 from rag import run_conversation
@@ -444,7 +449,6 @@ def get_all_contact_entries():
         contact["_id"] = str(contact["_id"])
     return contacts
 
-   
 @router.put("/contact_us/{contact_id}")
 async def update_contact_status(contact_id: str):
     return update_hr_contact_status(contact_id)
@@ -461,7 +465,20 @@ async def get_employee_weekly_workhour_summary(current_user: User = Depends(get_
 async def get_employee_yearly_workhour_summary(current_user: User = Depends(get_current_user)):
     return await get_employee_yearly_workhour_summary_service(current_user)
 
+@router.post("/predict/")
+async def predict_attendance(request: PredictionRequest, current_user: User = Depends(get_current_user)):
+    return await predict_attendance_service(request, current_user)
+
+@router.post("/predict/chart/")
+async def predict_attendance_chart(request: PredictionRequest, current_user: User = Depends(get_current_user)):
+    return await predict_attendance_chart_service(request, current_user)
+
+@router.get("/predictResult/")
+async def predict_result(current_user: User = Depends(get_current_user)):
+    return await predict_result_service(current_user)
+
 @router.get("/users/managers",response_model=List[Manager])
 async def get_managers():
     return await get_managers_list()
     
+

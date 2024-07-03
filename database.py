@@ -24,6 +24,7 @@ collection_remaining_leaves=database["remaining_leaves"]
 collection_working_hours=database["working_hours"]
 collection_interviews=database["interviews"]
 collection_contact_us=database["ContactUs"]
+collection_leave_predictions_dataset = database["Leave_prediction_dataset"]
 
 
 fs = GridFS(database,collection="candidate_pdfs")
