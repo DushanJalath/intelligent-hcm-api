@@ -1524,15 +1524,15 @@ async def get_all_employee_timereporting_service():
     for report in time_reports:
         employee_email = report.get("user_email")
         if employee_email:
-            employee = collection_user.find_one({"user_email": employee_email, "user_type": "Employee"}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+            employee = collection_user.find_one({"user_email": employee_email, "user_type": "Employee"}, {"fName": 1, "_id": 0, "profile_pic_url": 1})
             if employee:
                 total_work_time[employee_email] += report.get("totalWorkMilliSeconds")
     
     results = []
     for employee_email, total_milliseconds in total_work_time.items():
-        employee = collection_user.find_one({"user_email": employee_email}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+        employee = collection_user.find_one({"user_email": employee_email}, {"fName": 1, "_id": 0, "profile_pic_url": 1})
         if employee:
-            employee_name = employee.get("user_name")
+            employee_name = employee.get("fName")
             total_seconds = total_milliseconds // 1000
             hours = total_seconds // 3600
             minutes = (total_seconds % 3600) // 60
@@ -1554,15 +1554,15 @@ async def get_all_manager_timereporting_service():
     for report in time_reports:
         employee_email = report.get("user_email")
         if employee_email:
-            employee = collection_user.find_one({"user_email": employee_email, "user_type": "Manager"}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+            employee = collection_user.find_one({"user_email": employee_email, "user_type": "Manager"}, {"fName": 1, "_id": 0, "profile_pic_url": 1})
             if employee:
                 total_work_time[employee_email] += report.get("totalWorkMilliSeconds")
     
     results = []
     for employee_email, total_milliseconds in total_work_time.items():
-        employee = collection_user.find_one({"user_email": employee_email}, {"user_name": 1, "_id": 0, "profile_pic_url": 1})
+        employee = collection_user.find_one({"user_email": employee_email}, {"fName": 1, "_id": 0, "profile_pic_url": 1})
         if employee:
-            employee_name = employee.get("user_name")
+            employee_name = employee.get("fName")
             total_seconds = total_milliseconds // 1000
             hours = total_seconds // 3600
             minutes = (total_seconds % 3600) // 60
