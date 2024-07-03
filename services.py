@@ -1198,7 +1198,7 @@ def get_ot_data_manager(current_user):
                 user_data = collection_user.find_one({"user_email": email})
                 if user_data and user_data.get("user_type")=="Manager":
                     ot_chart_data["dp"]=user_data.get("profile_pic_url")
-                    ot_chart_data["name"] = user_data.get("fname", " ")
+                    ot_chart_data["name"] = user_data.get("fName", " ")
                     ot_chart_data["role"] = user_data.get("user_role", " ")
                     ot_chart_data_list_man.append(ot_chart_data)
             return(ot_chart_data_list_man)
