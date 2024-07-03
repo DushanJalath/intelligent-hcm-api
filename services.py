@@ -1293,7 +1293,7 @@ def get_interviews_service(current_user):
         raise HTTPException(status_code=403, detail="Unauthorized, only HR can view candidates")
     excluded_statuses = ["approved"]
     interviews = []
-    for interview in collection_interviews.find({"status": {"$nin": excluded_statuses}}).sort("i_id",1):
+    for interview in collection_interviews.find({"status": {"$nin": excluded_statuses}}).sort("i_id",-1):
         interview_data = {
             "i_id": interview["i_id"],
             "c_id": interview["c_id"],
