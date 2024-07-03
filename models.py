@@ -23,6 +23,7 @@ class User(BaseModel):
     user_pw:str
     user_type:str
     user_role:str 
+    manager: Optional[str] = None
 
 class add_vacancy(BaseModel):
     possition: str
@@ -45,8 +46,7 @@ class OT_Work_Hours(BaseModel):
     u_id:str
 
 class Bills(BaseModel):
-    u_id:str
-    amount:float
+    amount:str
     category:str
     storename:str
     Date:str
@@ -173,8 +173,9 @@ class JobApplicatons(BaseModel):
     job_title: str
     job_type: str
     work_mode: str
-    score:str
-    status: str
+    score:float
+    status:str
+
 
 
 class ContactUs(BaseModel):
@@ -189,3 +190,7 @@ class ContactUsResponse(BaseModel):
     user_contact_number: str
     feedback: str
     status: str
+
+class Manager(BaseModel):
+    user_email:str
+    fName:str

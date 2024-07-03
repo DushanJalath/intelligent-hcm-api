@@ -28,3 +28,4 @@ pandas
 joblib
 scikit-learn
 numpy
+pdfplumber

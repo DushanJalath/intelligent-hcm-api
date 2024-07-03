@@ -1,6 +1,6 @@
 # services.py
 from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request,collection_add_employee_leave_count,collection_add_manager_leave_count,collection_job_vacancies,grid_fs,collection_job_applications,collection_contact_us
-from models import UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons,ContactUs,PredictionRequest
+from models import Manager,UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons,ContactUs,PredictionRequest
 from utils import convert_object_id, hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images,get_current_user,create_future_data
 from datetime import timedelta,datetime
 from typing import List
@@ -18,7 +18,6 @@ from reportlab.lib.units import inch
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
-from cv_parser import process_resume
 import PyPDF2
 import pdfplumber
 import concurrent.futures 
@@ -33,6 +32,9 @@ from starlette.responses import JSONResponse,StreamingResponse
 from reportlab.lib.utils import ImageReader
 from PIL import Image
 import json
+import spacy
+from sentence_transformers import SentenceTransformer
+from cv_parser_new import  process_resume_and_job
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict
@@ -40,6 +42,12 @@ from functools import lru_cache
 from fastapi.security import OAuth2PasswordRequestForm
 import asyncio
 import joblib
+import yaml
+
+
+parsing_model=spacy.load(r"cv_parsing_model")
+sen_model=SentenceTransformer('bert-base-nli-mean-tokens')
+
 
 def get_gridfs():
     return fs
@@ -71,8 +79,14 @@ async def create_new_user(user: User, file: UploadFile) -> UserResponse:
         raise HTTPException(status_code=400, detail="Only PNG and JPG files are allowed.")
 
     bucket_name = "pdf_save"
-    credentials_path = "t.json"
-    client = storage.Client.from_service_account_json(credentials_path)
+    credentials_path = "google.yaml"  # Assuming the file is in the root of your repo
+
+    # Load the YAML credentials file
+    with open(credentials_path, 'r') as f:
+        credentials = yaml.safe_load(f)
+        
+    # Authenticate using the loaded credentials
+    client = storage.Client.from_service_account_info(credentials)
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(file.filename)
     blob.upload_from_string(await file.read(), content_type=file.content_type)
@@ -346,8 +360,14 @@ async def upload_bills(file: UploadFile):
             raise HTTPException(status_code=400, detail="Only PNG and JPG files are allowed.")
 
         bucket_name = "pdf_save"
-        credentials_path = "D:/json key/t.json"
-        client = storage.Client.from_service_account_json(credentials_path)
+        credentials_path = "google.yaml"  # Assuming the file is in the root of your repo
+
+        # Load the YAML credentials file
+        with open(credentials_path, 'r') as f:
+            credentials = yaml.safe_load(f)
+        
+        # Authenticate using the loaded credentials
+        client = storage.Client.from_service_account_info(credentials)
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(file.filename)
         blob.upload_from_string(await file.read(), content_type=file.content_type)
@@ -513,18 +533,18 @@ def get_candidates_service(current_user):
     excluded_statuses = ["approved", "rejected"]
     candidates = []
     
-    for candidate in collection_new_candidate.find({"status": {"$nin": excluded_statuses}}).sort("score", -1):
-        vacancy = collection_add_vacancy.find_one({"vacancy_id": candidate["vacancy_id"]})
-        if vacancy:
-            candidate_data = {
-                "c_id": candidate["c_id"],
-                "email": candidate["email"],
-                "name": candidate["name"],
-                "score": candidate["score"],
-                "cv": candidate["cv"],
-                "vacancy": vacancy.get("possition")
-            }
-            candidates.append(candidate_data)
+    for candidate in collection_job_applications.find({"status": {"$nin": excluded_statuses}}).sort("score", -1):
+        '''vacancy = collection_job_vacancies.find_one({"vacancy_id": candidate["job_title"]})
+        if vacancy:'''
+        candidate_data = {
+            "c_id": candidate["c_id"],
+            "email": candidate["email"],
+            "name": candidate["name"],
+            "score": candidate["score"],
+            "cv": candidate["cv"],
+            #"vacancy": candidate["job_title"]
+        }
+        candidates.append(candidate_data)
     
     return candidates
 
@@ -1217,10 +1237,9 @@ async def parse_cv_and_store(c_id: str):
             cv_text=cv_future.result()
             jd_text=jd_future.result()
 
-        status,matching_score=process_resume(cv_text,jd_text)
+        matching_score=process_resume_and_job(cv_text,jd_text,parsing_model,sen_model)
 
-        if status != "Success":
-            return status, None
+        
         collection_job_applications.update_one({"c_id": c_id}, {"$set": {"score": float(matching_score)}})
         return {"Success",matching_score}
     except FileNotFoundError:
@@ -1291,9 +1310,7 @@ def get_interviews_service(current_user):
         interviews.append(interview_data)
     return interviews
 
-async def download_candidate_cv_interview(cv_id, fs,current_user):
-    if current_user.get('user_type') not in ["HR", "Manager"]:
-        raise HTTPException(status_code=403, detail="Unauthorized, only HR can download CVs")
+async def download_candidate_cv_interview(cv_id, fs):
     try:
         # Retrieve the file from GridFS
         file = fs.get(ObjectId(cv_id))
@@ -1304,8 +1321,9 @@ async def download_candidate_cv_interview(cv_id, fs,current_user):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     
-async def fetch_interviewer_email_details(c_id: str, current_user, base_url: str):
+async def fetch_interviewer_email_details(c_id: str, base_url: str):
     interview = collection_interviews.find_one({"c_id": c_id})
+    job=collection_job_applications.find_one({"c_id":c_id})
     if interview is None:
         raise HTTPException(status_code=404, detail="Interview not found")
     
@@ -1322,11 +1340,12 @@ async def fetch_interviewer_email_details(c_id: str, current_user, base_url: str
    
     details = {
         "email": email,
+        "job_title":job.get("job_title"),
         "name": interviewer.get("user_name"),
         "date": interview.get("date"),
         "time": interview.get("time"),
         "venue": interview.get("venue"),
-        "cv": f"{base_url}/download_cv/{cv_id}"
+        "cv": f"{base_url}/download_cv_interviewer/{cv_id}"
     }
 
     return details
@@ -1405,7 +1424,7 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
         c_id = f"C{new_seq:03d}"
 
         # Fetch job details based on vacancy_id
-        job_details = collection_add_vacancy.find_one({"vacancy_id": vacancy_id})
+        job_details = collection_job_vacancies.find_one({"vacancy_id": vacancy_id})
         if not job_details:
             raise HTTPException(status_code=404, detail="Vacancy ID not found")
 
@@ -1419,10 +1438,10 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
             email=email,
             contact_number=contact_number,
             cv=str(cv_id),  # Store the CV file's ObjectId
-            job_title=job_details.get("possition"),
+            job_title=job_details.get("job_title"),
             job_type=job_details.get("job_type"),
             work_mode=job_details.get("work_mode"),
-            score=" ",
+            score=0.0,
             status="pending"
         )
         collection_job_applications.insert_one(job_application.dict())
@@ -1618,7 +1637,7 @@ async def get_employee_weekly_workhour_summary_service(current_user):
     }
     return response
 
-async def get_employee_yearly_workhour_summary_service(current_user):
+def get_employee_yearly_workhour_summary_service(current_user):
     user_email = current_user.get("user_email")
     documents = collection_emp_time_rep.find({"user_email": user_email})
     monthly_hours = defaultdict(float)
@@ -1634,7 +1653,6 @@ async def get_employee_yearly_workhour_summary_service(current_user):
     ]
 
     return response
-
 
 @lru_cache()
 def load_model():
@@ -1697,3 +1715,16 @@ async def predict_result_service(current_user: User):
         return {"Today_predicted_attendance": predicted_attendance_rounded, "Today_Total_Leave": Today_Total_Leave, "Today_Predicted_Leave": Today_Predicted_Leave, "total_empolyee_count": total_empolyee_count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+async def get_managers_list():
+    managers = []
+    for user in collection_user.find({"user_type": "Manager"}):
+        manager = Manager(
+            user_email=user["user_email"],
+            fName=user["fName"]
+        )
+        managers.append(manager)
+    if not managers:
+        raise HTTPException(status_code=404, detail="No managers found")
+    return managers
+
