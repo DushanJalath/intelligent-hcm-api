@@ -322,15 +322,17 @@ def update_hr_vacancy_status(vacancy_id, status_data, current_user):
     return {"message": f"Vacancy {vacancy_id} updated successfully"}
 
 def publish_vacancy_service(vacancy_id: str, current_user: dict):
+    excluded_statuses = ["rejected","pending"] 
+    vacancy_status = collection_add_vacancy.find_one({"status": {"$nin": excluded_statuses}})
+    if not vacancy_status:
+        raise HTTPException(status_code=404, detail="vacancy not approved yet") 
+    
     vacancy = collection_add_vacancy.find_one({"vacancy_id": vacancy_id})
     if not vacancy:
         raise HTTPException(status_code=404, detail="Vacancy not found")
 
     if current_user.get('user_type') != 'HR':  # Ensure only HR can publish
         raise HTTPException(status_code=403, detail="Permission denied")
-
-    if vacancy.get('status') != 'approved':
-        raise HTTPException(status_code=400, detail="Vacancy not approved yet or rejected")
 
     collection_add_vacancy.update_one(
         {"vacancy_id": vacancy_id},
