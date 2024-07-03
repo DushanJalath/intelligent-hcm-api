@@ -1175,16 +1175,19 @@ def get_ot_data_employees(current_user):
                 email=ot_data.get("u_email")
                 totOT=ot_data.get("totalOT")
                 fixedOT=ot_data.get("fixedOT")
+                remaining_ot= round((fixedOT-totOT),2)
                 ot_chart_data={
+                    "dp":" ",
                     "name":" ",
                     "role":" ",
                     "completed":totOT,
-                    "remaining":fixedOT-totOT
+                    "remaining":remaining_ot
                 }
 
                 user_data = collection_user.find_one({"user_email": email})
                 if user_data and user_data.get("user_type")=="Employee":
-                    ot_chart_data["name"] = user_data.get("name", " ")
+                    ot_chart_data["dp"]=user_data.get("profile_pic_url")
+                    ot_chart_data["name"] = user_data.get("fName", " ") 
                     ot_chart_data["role"] = user_data.get("user_role", " ")
                     ot_chart_data_list_emp.append(ot_chart_data)
             return(ot_chart_data_list_emp)
@@ -1203,6 +1206,7 @@ def get_ot_data_manager(current_user):
                 totOT=ot_data.get("totalOT")
                 fixedOT=ot_data.get("fixedOT")
                 ot_chart_data={
+                    "dp":" ",
                     "name":" ",
                     "role":" ",
                     "completed":totOT,
@@ -1211,7 +1215,8 @@ def get_ot_data_manager(current_user):
 
                 user_data = collection_user.find_one({"user_email": email})
                 if user_data and user_data.get("user_type")=="Manager":
-                    ot_chart_data["name"] = user_data.get("name", " ")
+                    ot_chart_data["dp"]=user_data.get("profile_pic_url")
+                    ot_chart_data["name"] = user_data.get("fName", " ")
                     ot_chart_data["role"] = user_data.get("user_role", " ")
                     ot_chart_data_list_man.append(ot_chart_data)
             return(ot_chart_data_list_man)
@@ -1225,23 +1230,25 @@ async def parse_cv_and_store(c_id: str):
         candidate = collection_job_applications.find_one({"c_id": c_id})
         v_id = candidate.get("job_title")
         cv_id = candidate.get("cv")
-        jd = collection_job_vacancies.find_one({"job_title": v_id})
-        jd_id = jd.get("pdf_id")
+        jd = collection_add_vacancy.find_one({"possition": v_id})
         cv_pdf=grid_fs.get(ObjectId(cv_id))
-        jd_pdf=grid_fs.get(ObjectId(jd_id))
+        pre_requisits=jd.get("pre_requisits"," ")
+        responsibilities=jd.get("responsibilities"," ")
+        more_details=jd.get("more_details", " ")
+
+        jd_text=f"{v_id}\n{pre_requisits}\n{responsibilities}\n{more_details}"
 
         with concurrent.futures.ThreadPoolExecutor() as executor:
             cv_future=executor.submit (extract_text_from_pdf,cv_pdf)
-            jd_future=executor.submit (extract_text_from_pdf,jd_pdf)
 
             cv_text=cv_future.result()
-            jd_text=jd_future.result()
 
         matching_score=process_resume_and_job(cv_text,jd_text,parsing_model,sen_model)
+        rounded_score=round(matching_score,2)
 
         
-        collection_job_applications.update_one({"c_id": c_id}, {"$set": {"score": float(matching_score)}})
-        return {"Success",matching_score}
+        collection_job_applications.update_one({"c_id": c_id}, {"$set": {"score": float(rounded_score)}})
+        return {"Success",rounded_score}
     except FileNotFoundError:
         return f"File not found: {cv_id}", None
     except Exception as e:  
@@ -1262,6 +1269,15 @@ def extract_text_from_pdf(pdf_file):
 def add_interview_service(interview_data,current_user):
     if current_user.get("user_type")=="HR":
         try:
+            existing_interview = collection_interviews.find_one({
+                "date": interview_data.date,
+                "time": interview_data.time,
+                "venue": interview_data.venue
+            })
+
+            if existing_interview:
+                return {"message": "An interview is already scheduled at the same date, time, and venue"}
+
             last_interview = collection_interviews.find_one(sort=[("_id", -1)])
             last_id = last_interview["i_id"] if last_interview else "I000"
             last_seq = int(last_id[1:])
@@ -1295,7 +1311,7 @@ def get_interviews_service(current_user):
         raise HTTPException(status_code=403, detail="Unauthorized, only HR can view candidates")
     excluded_statuses = ["approved"]
     interviews = []
-    for interview in collection_interviews.find({"status": {"$nin": excluded_statuses}}).sort("i_id",1):
+    for interview in collection_interviews.find({"status": {"$nin": excluded_statuses}}).sort("i_id",-1):
         interview_data = {
             "i_id": interview["i_id"],
             "c_id": interview["c_id"],
@@ -1424,7 +1440,7 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
         c_id = f"C{new_seq:03d}"
 
         # Fetch job details based on vacancy_id
-        job_details = collection_job_vacancies.find_one({"vacancy_id": vacancy_id})
+        job_details = collection_add_vacancy.find_one({"vacancy_id": vacancy_id})
         if not job_details:
             raise HTTPException(status_code=404, detail="Vacancy ID not found")
 
@@ -1438,7 +1454,7 @@ async def create_candidate_cv_service(vacancy_id: str, name: str, email: str, co
             email=email,
             contact_number=contact_number,
             cv=str(cv_id),  # Store the CV file's ObjectId
-            job_title=job_details.get("job_title"),
+            job_title=job_details.get("possition"),
             job_type=job_details.get("job_type"),
             work_mode=job_details.get("work_mode"),
             score=0.0,

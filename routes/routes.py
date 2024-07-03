@@ -76,10 +76,14 @@ from services import (
     get_employee_attendance_calender_service,
     get_employee_weekly_workhour_summary_service,
     get_employee_yearly_workhour_summary_service,
+    get_managers_list,
+    get_ot_data_employees,
+    get_ot_data_manager,
     predict_attendance_service,
     predict_attendance_chart_service,
-    predict_result_service
+    predict_result_service,
     get_managers_list
+
 )
 
 from rag import run_conversation
@@ -378,6 +382,15 @@ async def parse_cv_and_update_score(c_id: str):
 
     except Exception as e:
         return {"error": f"Failed to parse CV and update score: {str(e)}"}, 500
+    
+@router.get("/get_ot_data_emp")
+async def get_ot_data_emp(current_user:User=Depends(get_current_user)):
+    return get_ot_data_employees(current_user)
+
+@router.get("/get_ot_data_man")
+async def get_ot_data_man(current_user:User=Depends(get_current_user)):
+    return get_ot_data_manager(current_user)
+
 ##add Interviews
 @router.post("/add_interview")
 def add_interview(interview_data:Interview,current_user:User=Depends(get_current_user)):
