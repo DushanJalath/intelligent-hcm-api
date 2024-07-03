@@ -3,6 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes import routes
 from fastapi.security import OAuth2PasswordBearer
+from utils import schedule_daily_collection
+
 
 app = FastAPI()
 
@@ -21,7 +23,12 @@ app.add_middleware(
 
 app.include_router(routes.router)
 
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+# @app.on_event("startup")
+# def startup_event():
+#     schedule_daily_collection()
 
 
 if __name__ == "__main__":
