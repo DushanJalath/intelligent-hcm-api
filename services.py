@@ -38,6 +38,7 @@ from cv_parser_new import  process_resume_and_job
 from collections import defaultdict
 from datetime import datetime
 from typing import Dict
+import yaml
 
 
 parsing_model=spacy.load(r"cv_parsing_model")
@@ -75,8 +76,14 @@ async def create_new_user(user: User, file: UploadFile) -> UserResponse:
         raise HTTPException(status_code=400, detail="Only PNG and JPG files are allowed.")
 
     bucket_name = "pdf_save"
-    credentials_path = "t.json"
-    client = storage.Client.from_service_account_json(credentials_path)
+    credentials_path = "google.yaml"  # Assuming the file is in the root of your repo
+
+    # Load the YAML credentials file
+    with open(credentials_path, 'r') as f:
+        credentials = yaml.safe_load(f)
+        
+    # Authenticate using the loaded credentials
+    client = storage.Client.from_service_account_info(credentials)
     bucket = client.bucket(bucket_name)
     blob = bucket.blob(file.filename)
     blob.upload_from_string(await file.read(), content_type=file.content_type)
@@ -350,8 +357,14 @@ async def upload_bills(file: UploadFile):
             raise HTTPException(status_code=400, detail="Only PNG and JPG files are allowed.")
 
         bucket_name = "pdf_save"
-        credentials_path = "D:/json key/t.json"
-        client = storage.Client.from_service_account_json(credentials_path)
+        credentials_path = "google.yaml"  # Assuming the file is in the root of your repo
+
+        # Load the YAML credentials file
+        with open(credentials_path, 'r') as f:
+            credentials = yaml.safe_load(f)
+        
+        # Authenticate using the loaded credentials
+        client = storage.Client.from_service_account_info(credentials)
         bucket = client.bucket(bucket_name)
         blob = bucket.blob(file.filename)
         blob.upload_from_string(await file.read(), content_type=file.content_type)
