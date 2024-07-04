@@ -1770,7 +1770,7 @@ async def get_managers_list():
 async def get_remaining_overtime_service(current_user):
     user_email = current_user.get("user_email")
     document = collection_working_hours.find_one(
-        {"u_email": user_email},
+        {"user_email": user_email},
         {"_id": 0, "fixedOT": 1, "totalOT": 1}
     )
 
@@ -1787,7 +1787,7 @@ async def get_remaining_overtime_service(current_user):
 async def get_total_overtime_service(current_user):
     user_email = current_user.get("user_email")
     document = collection_working_hours.find_one(
-        {"u_email": user_email},
+        {"user_email": user_email},
         {"_id": 0,  "totalOT": 1}
     )
 
@@ -1803,7 +1803,7 @@ async def get_total_overtime_service(current_user):
 async def get_monthly_report_service(current_user):
     user_email = current_user.get("user_email")
     document = collection_working_hours.find_one(
-        {"u_email": user_email},
+        {"user_email": user_email},
         {"_id": 0, "oTHourlyRate": 1, "totalOT": 1}
     )
     pay_per_hour = document['oTHourlyRate']
