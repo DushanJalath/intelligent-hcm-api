@@ -72,14 +72,14 @@ def refresh_tokens(refresh_token: str):
     return {"access_token": new_access_token, "token_type": "bearer"}
 
 
-async def create_new_user(user: User, file: UploadFile) -> UserResponse:
+async def create_new_user(user: User,ot_work_hours:OT_Work_Hours ,file: UploadFile) -> UserResponse:
     allowed_extensions = {'png', 'jpg', 'jpeg'}
     file_extension = file.filename.split('.')[-1]
     if file_extension.lower() not in allowed_extensions:
         raise HTTPException(status_code=400, detail="Only PNG and JPG files are allowed.")
 
     bucket_name = "pdf_save"
-    credentials_path = "google.yaml"  # Assuming the file is in the root of your repo
+    credentials_path = "cadentials.yaml"  # Assuming the file is in the root of your repo
 
     # Load the YAML credentials file
     with open(credentials_path, 'r') as f:
@@ -96,9 +96,9 @@ async def create_new_user(user: User, file: UploadFile) -> UserResponse:
     user_data = user.dict()
     user_data["user_pw"] = hashed_password
     user_data['profile_pic_url'] = image_url
-    result =  collection_user.insert_one(user_data)
-    
-    return UserResponse(message="User created successfully", user_id=str(result.inserted_id))
+    result_1 =  collection_user.insert_one(user_data)
+    result_2=collection_working_hours.insert_one(ot_work_hours.dict())
+    return UserResponse(message="User created successfully", user_id=str(result_1.inserted_id))
 
 
 def login_user_manual(user_login, ACCESS_TOKEN_EXPIRE_MINUTES):
