@@ -495,6 +495,7 @@ async def get_bill_details(collection_bills: Collection, user_email: str) -> Lis
         for bill in bills:
             bill_details.append({
                 "category": bill.get("category"),
+                "bill_id": bill.get("bill_id"),
                 "status": bill.get("status"),
                 "submitdate": bill.get("submitdate"),
                 "image_url": bill.get("image_url"),
@@ -881,7 +882,7 @@ def get_user_leave_status(current_user):
     try:
         cursor = collection_add_leave_request.find(
             {"user_email": current_user.get('user_email')},
-            {"leaveType": 1, "startDate": 1, "dayCount": 1, "submitdate": 1,"submitdatetime": 1, "status": 1, "_id": 0}
+            {"leaveType": 1,"leave_id": 1, "startDate": 1, "dayCount": 1, "submitdate": 1,"submitdatetime": 1, "status": 1, "_id": 0}
         ).sort("submitdatetime", -1)  # Sort by submitdate in descending order
         results = list(cursor)
         if not results:
@@ -1670,6 +1671,27 @@ def get_employee_yearly_workhour_summary_service(current_user):
 
     return response
 
+
+
+def delete_upload_bill(bill_id: str):
+    try:
+        result = collection_bills.delete_one({"bill_id": bill_id})
+        return result
+
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to delete bill")
+
+
+def delete_request_leave(leave_id: str):
+    try:
+        result = collection_add_leave_request.delete_one({"leave_id": leave_id})
+        return result
+
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail="Failed to delete leave")
+
 @lru_cache()
 def load_model():
     return joblib.load("rfmodel_leave.joblib")
@@ -1743,4 +1765,5 @@ async def get_managers_list():
     if not managers:
         raise HTTPException(status_code=404, detail="No managers found")
     return managers
+
 
