@@ -1767,3 +1767,54 @@ async def get_managers_list():
     return managers
 
 
+async def get_remaining_overtime_service(current_user):
+    user_email = current_user.get("user_email")
+    document = collection_working_hours.find_one(
+        {"u_email": user_email},
+        {"_id": 0, "fixedOT": 1, "totalOT": 1}
+    )
+
+    if not document:
+        raise ValueError("Document not found")
+
+    remaining_ot = document['fixedOT'] - document['totalOT']
+    total_seconds = int(remaining_ot * 3600)
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    return {f"{hours:02}:{minutes:02}:{seconds:02}"}
+
+async def get_total_overtime_service(current_user):
+    user_email = current_user.get("user_email")
+    document = collection_working_hours.find_one(
+        {"u_email": user_email},
+        {"_id": 0,  "totalOT": 1}
+    )
+
+    if not document:
+        raise ValueError("Document not found")
+    remaining_ot = document['totalOT']
+    total_seconds = int(remaining_ot * 3600)
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    return {f"{hours:02}:{minutes:02}:{seconds:02}"}
+
+async def get_monthly_report_service(current_user):
+    user_email = current_user.get("user_email")
+    document = collection_working_hours.find_one(
+        {"u_email": user_email},
+        {"_id": 0, "oTHourlyRate": 1, "totalOT": 1}
+    )
+    pay_per_hour = document['oTHourlyRate']
+    total_payment = document['totalOT']*round(float(document['oTHourlyRate']),2)
+    total_OT = document['totalOT']
+    total_seconds = int(total_OT * 3600)
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    seconds = total_seconds % 60
+    return{"total_OT":f"{hours:02}:{minutes:02}:{seconds:02}","pay_per_hour":pay_per_hour,"total_payment":total_payment}
+
+
+
+

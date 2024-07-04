@@ -84,7 +84,10 @@ from services import (
     predict_attendance_service,
     predict_attendance_chart_service,
     predict_result_service,
-    get_managers_list
+    get_managers_list,
+    get_remaining_overtime_service,
+    get_total_overtime_service,
+    get_monthly_report_service
 
 )
 
@@ -513,5 +516,17 @@ async def predict_result(current_user: User = Depends(get_current_user)):
 @router.get("/users/managers",response_model=List[Manager])
 async def get_managers():
     return await get_managers_list()
+
+@router.get("/get_remaining_overtime")
+async def get_remaining_overtime(current_user: User = Depends(get_current_user)):
+    return await get_remaining_overtime_service(current_user)
+
+@router.get("/get_total_overtime")
+async def get_total_overtime(current_user: User = Depends(get_current_user)):
+    return await get_total_overtime_service(current_user)
+
+@router.get("/get_monthly_report")
+async def get_monthly_report(current_user: User = Depends(get_current_user)):
+    return await get_monthly_report_service(current_user)
     
 
