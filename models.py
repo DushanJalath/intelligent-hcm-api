@@ -38,12 +38,11 @@ class UpdateVacancyStatus(BaseModel):
     new_status: str
 
 class OT_Work_Hours(BaseModel):
-    time:str
-    OTPay:float
+    oTHourlyRate:float
     totalOT:float
-    hour:float
-    fixedOT:float
-    u_id:str
+    fixedOT:int
+    totalOTPay:float 
+    user_email:str
 
 class Bills(BaseModel):
     amount:str
