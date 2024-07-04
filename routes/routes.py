@@ -116,8 +116,10 @@ async def create_user(
     user_pw: str = Form(...),
     user_type: str = Form(...),
     user_role: str = Form(...),
+    max_ot: str = Form(...),
+    hourly_ot_rate:str=Form(...),
+    profile_pic: UploadFile = File(...),
     manager:str=Form(...),
-    profile_pic: UploadFile = File(...)
 ):
     user = User(
         fName=fName,
@@ -127,10 +129,17 @@ async def create_user(
         address=address,
         user_pw=user_pw,
         user_type=user_type,
-        user_role=user_role,
-        manager=manager
+        user_role=user_role or "",  
+        manager=manager or ""
     )
-    return await create_new_user(user, profile_pic)
+    ot_work_hours = OT_Work_Hours(
+        oTHourlyRate=hourly_ot_rate or '0',  
+        totalOT=0,
+        fixedOT=max_ot or '0',
+        totalOTPay=0,
+        user_email=user_email
+    )
+    return await create_new_user(user, ot_work_hours, profile_pic)
 
 @router.post("/login")
 async def login(user_login: User_login):
