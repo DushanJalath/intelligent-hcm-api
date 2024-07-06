@@ -1,6 +1,6 @@
 # services.py
 from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request,collection_add_employee_leave_count,collection_add_manager_leave_count,collection_job_vacancies,grid_fs,collection_job_applications,collection_contact_us
-from models import Manager,UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons,ContactUs,PredictionRequest
+from models import Manager,UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons,ContactUs,PredictionRequest,OT_Work_Hours
 from utils import convert_object_id, hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images,get_current_user,create_future_data
 from datetime import timedelta,datetime
 from typing import List
@@ -360,7 +360,7 @@ async def upload_bills(file: UploadFile):
             raise HTTPException(status_code=400, detail="Only PNG and JPG files are allowed.")
 
         bucket_name = "pdf_save"
-        credentials_path = "google.yaml"  # Assuming the file is in the root of your repo
+        credentials_path = "cadentials.yaml"  # Assuming the file is in the root of your repo
 
         # Load the YAML credentials file
         with open(credentials_path, 'r') as f:
@@ -1817,4 +1817,21 @@ async def get_monthly_report_service(current_user):
 
 
 
+async def predict_attendance_chart_service_today(current_user: User):
+    if current_user.get('user_type') not in ["HR", "Manager"]:
+        raise HTTPException(status_code=403, detail="Unauthorized, only HR can approve vacancies")
+    try:
+        input_date = datetime.now()
+    
+        prediction_data = []
+        for i in range(1, 8):
+            next_date = (input_date + timedelta(days=i)).strftime('%m%d')
+            future_data = await asyncio.to_thread(create_future_data, next_date)
+            predicted_attendance = await asyncio.to_thread(rf_model.predict, future_data)
+            predicted_attendance_rounded = int(round(predicted_attendance[0]))  # Round to nearest integer
+            prediction_data.append({"date": next_date, "predicted_attendance": predicted_attendance_rounded})
+
+        return prediction_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
