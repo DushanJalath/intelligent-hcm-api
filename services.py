@@ -1,5 +1,5 @@
 # services.py
-from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request,collection_add_employee_leave_count,collection_add_manager_leave_count,collection_job_vacancies,grid_fs,collection_job_applications,collection_contact_us
+from database import collection_emp_time_rep, collection_user, collection_add_vacancy, collection_bills, collection_new_candidate, fs,collection_emp_vac_submit,collection_bill_upload,collection_interviews,collection_leaves,collection_remaining_leaves,collection_working_hours,collection_add_leave_request,collection_add_employee_leave_count,collection_add_manager_leave_count,collection_job_vacancies,fs as grid_fs,collection_job_applications,collection_contact_us
 from models import Manager,UserResponse,TimeReportQuery, EmpTimeRep, EmpSubmitForm, User, add_vacancy, Bills, Candidate, UpdateVacancyStatus, UpdateCandidateStatus,FileModel,JobVacancy,JobApplicatons,ContactUs,PredictionRequest,OT_Work_Hours
 from utils import convert_object_id, hash_password, verify_password, create_access_token, create_refresh_token, authenticate_user,decode_token,extract_entities_from_text,extract_text_from_images,get_current_user,create_future_data
 from datetime import timedelta,datetime
@@ -43,6 +43,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 import asyncio
 import joblib
 import yaml
+import pytz
 
 
 parsing_model=spacy.load(r"cv_parsing_model")
@@ -1835,3 +1836,122 @@ async def predict_attendance_chart_service_today(current_user: User):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+def get_today_employee_absence_list(current_user_details):
+    leave_requests = []
+
+    time_zone = pytz.timezone("Asia/Kolkata")
+    today = datetime.now(time_zone).date()
+    
+    query = {
+        "status": "approved",
+        "user_type":"Employee"
+    }
+    
+    for request in collection_add_leave_request.find(query):
+        start_date = datetime.strptime(request["startDate"], '%Y-%m-%d').date()
+        day_count = int(request["dayCount"])
+        end_date = start_date + timedelta(days=day_count - 1)
+        
+        if start_date <= today <= end_date:
+            requested_leave_data = {
+                "leave_id": request["leave_id"],
+                "user_type": request["user_type"],
+                "user_email": request["user_email"],
+                "startDate": request["startDate"],
+                "dayCount": request["dayCount"],
+                "submitdate": request["submitdate"],
+                "status": request["status"],
+            }
+            leave_requests.append(requested_leave_data)
+    return leave_requests
+
+
+def get_all_employees_list(current_user_details):
+    employee_list = []
+    
+    query = {
+        "user_type": "Employee"
+    }
+    
+    for user in collection_user.find(query):
+        employee_data = {
+            "user_type": user.get("user_type"),
+            "fName": user.get("fName"),
+            "user_email": user.get("user_email"),
+            "manager":user.get("manager"),
+            "profile_pic_url":user.get("profile_pic_url")
+        }
+        employee_list.append(employee_data)
+    
+    return employee_list
+
+
+def get_today_manager_absence_list(current_user_details):
+    leave_requests = []
+
+    time_zone = pytz.timezone("Asia/Kolkata")
+    today = datetime.now(time_zone).date()
+    
+    query = {
+        "status": "approved",
+        "user_type":"Manager"
+    }
+    
+    for request in collection_add_leave_request.find(query):
+        start_date = datetime.strptime(request["startDate"], '%Y-%m-%d').date()
+        day_count = int(request["dayCount"])
+        end_date = start_date + timedelta(days=day_count - 1)
+        
+        if start_date <= today <= end_date:
+            requested_leave_data = {
+                "leave_id": request["leave_id"],
+                "user_type": request["user_type"],
+                "user_email": request["user_email"],
+                "startDate": request["startDate"],
+                "dayCount": request["dayCount"],
+                "submitdate": request["submitdate"],
+                "status": request["status"],
+            }
+            leave_requests.append(requested_leave_data)
+    return leave_requests
+
+
+def get_all_managers_list(current_user_details):
+    manager_list = []
+    
+    query = {
+        "user_type": "Manager"
+    }
+    
+    for user in collection_user.find(query):
+        manager_data = {
+            "user_type": user.get("user_type"),
+            "fName": user.get("fName"),
+            "user_email": user.get("user_email"),
+            "profile_pic_url":user.get("profile_pic_url")
+        }
+        manager_list.append(manager_data)
+    
+    return manager_list
+
+
+def get_manager_employees_list(current_user_details):
+    employee_list = []
+    
+    query = {
+        "user_type": "Employee",
+        "manager": current_user_details["user_email"] 
+    }
+    
+    for user in collection_user.find(query):
+        employee_data = {
+            "user_type": user.get("user_type"),
+            "fName": user.get("fName"),
+            "user_email": user.get("user_email"),
+            "manager": user.get("manager"),
+            "profile_pic_url":user.get("profile_pic_url")
+        }
+        employee_list.append(employee_data)
+    
+    return employee_list
