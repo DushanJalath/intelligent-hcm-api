@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, File, UploadFile,Form,Res
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.responses import JSONResponse,RedirectResponse
 from datetime import timedelta
-from models import Manager, TimeReportQuery, EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount,Interview,ContactUs,ContactUsResponse,PredictionRequest
+from models import Manager, TimeReportQuery, EmpTimeRep, UserMessage,EmpSubmitForm,User_login, User, add_vacancy, UpdateVacancyStatus, Bills, Candidate, UpdateCandidateStatus,FileModel,LeaveRequest,Update_leave_request,EmployeeLeaveCount,ManagerLeaveCount,Interview,ContactUs,ContactUsResponse,PredictionRequest,OT_Work_Hours
 from utils import get_current_user
 from config import ACCESS_TOKEN_EXPIRE_MINUTES
 from gridfs import GridFS
@@ -88,7 +88,12 @@ from services import (
     get_remaining_overtime_service,
     get_total_overtime_service,
     get_monthly_report_service,
-    predict_attendance_chart_service_today
+    predict_attendance_chart_service_today,
+    get_today_employee_absence_list,
+    get_today_manager_absence_list,
+    get_all_employees_list,
+    get_all_managers_list,
+    get_manager_employees_list
 
 )
 
@@ -542,3 +547,35 @@ async def get_monthly_report(current_user: User = Depends(get_current_user)):
 @router.get("/predict/chart/today/")
 async def predict_attendance_chart(current_user: User = Depends(get_current_user)):
     return await predict_attendance_chart_service_today(current_user)
+
+
+@router.get("/get_today_employees")
+async def get_today_employees(current_user: User = Depends(get_current_user)):
+    all_employees = get_all_employees_list(current_user)
+    absent_employees = get_today_employee_absence_list(current_user)
+    
+    absent_emails = {emp["user_email"] for emp in absent_employees}
+    today_employees = [emp for emp in all_employees if emp["user_email"] not in absent_emails]
+    
+    return today_employees
+
+@router.get("/get_today_managers")
+async def get_today_managers(current_user: User = Depends(get_current_user)):
+    all_managers = get_all_managers_list(current_user)
+    absent_managers = get_today_manager_absence_list(current_user)
+    
+    absent_emails = {emp["user_email"] for emp in absent_managers}
+    today_managers = [emp for emp in all_managers if emp["user_email"] not in absent_emails]
+    
+    return today_managers
+
+@router.get("/get_today_manager's_employees")
+async def get_today_manager_employees(current_user: User = Depends(get_current_user)):
+    all_employees = get_manager_employees_list(current_user)
+    absent_employees = get_today_employee_absence_list(current_user)
+    
+    absent_emails = {emp["user_email"] for emp in absent_employees}
+    today_employees = [emp for emp in all_employees if emp["user_email"] not in absent_emails]
+    
+    return today_employees
+
