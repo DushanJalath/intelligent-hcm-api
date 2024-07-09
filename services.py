@@ -1350,7 +1350,8 @@ async def fetch_interviewer_email_details(c_id: str, base_url: str):
     if interviewer is None:
         raise HTTPException(status_code=404, detail="Interviewer not found")
     
-    find_cv=collection_new_candidate.find_one({"c_id":c_id})
+    #find_cv=collection_new_candidate.find_one({"c_id":c_id})
+    find_cv=collection_job_applications.find_one({"c_id":c_id})
     if find_cv is None:
         raise HTTPException(status_code=404, detail="Candidate CV not found")
     
