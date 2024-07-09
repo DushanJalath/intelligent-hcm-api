@@ -863,7 +863,6 @@ def get_user_leave_request(current_user_details):
         requested_leave_data = {
             "leave_id": request["leave_id"],
             "user_type": request["user_type"],
-            "user_name": request["user_name"],
             "user_email": request["user_email"],
             "leaveType": request["leaveType"],
             "startDate": request["startDate"],
