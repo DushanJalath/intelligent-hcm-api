@@ -1536,20 +1536,23 @@ def update_hr_contact_status(contact_id):
     return {"message": f"Contact {contact_id} status updated to 'read' successfully"}
 
 async def get_all_employee_timereporting_service():
-    total_work_time = defaultdict(int)
-    time_reports = collection_emp_time_rep.find()
-    
-    for report in time_reports:
-        employee_email = report.get("user_email")
-        if employee_email:
-            employee = collection_user.find_one({"user_email": employee_email, "user_type": "Employee"}, {"fName": 1, "_id": 0, "profile_pic_url": 1})
-            if employee:
-                total_work_time[employee_email] += report.get("totalWorkMilliSeconds")
-    
+    # Fetch all employee user data once
+    employees = list(
+        collection_user.find({"user_type": "Employee"}, {"fName": 1, "user_email": 1, "profile_pic_url": 1, "_id": 0}))
+    employee_dict = {emp["user_email"]: emp for emp in employees}
+
+    # Calculate total work time for each employee using aggregation
+    time_reports = collection_emp_time_rep.aggregate([
+        {"$group": {"_id": "$user_email", "totalWorkMilliSeconds": {"$sum": "$totalWorkMilliSeconds"}}}
+    ])
+
     results = []
-    for employee_email, total_milliseconds in total_work_time.items():
-        employee = collection_user.find_one({"user_email": employee_email}, {"fName": 1, "_id": 0, "profile_pic_url": 1})
-        if employee:
+    for report in time_reports:
+        employee_email = report["_id"]
+        total_milliseconds = report["totalWorkMilliSeconds"]
+
+        if employee_email in employee_dict:
+            employee = employee_dict[employee_email]
             employee_name = employee.get("fName")
             total_seconds = total_milliseconds // 1000
             hours = total_seconds // 3600
@@ -1562,36 +1565,41 @@ async def get_all_employee_timereporting_service():
                 "dp": employee.get("profile_pic_url")
             }
             results.append(report_with_name)
+
     return results
 
 
 async def get_all_manager_timereporting_service():
-    total_work_time = defaultdict(int)
-    time_reports = collection_emp_time_rep.find()
-    
-    for report in time_reports:
-        employee_email = report.get("user_email")
-        if employee_email:
-            employee = collection_user.find_one({"user_email": employee_email, "user_type": "Manager"}, {"fName": 1, "_id": 0, "profile_pic_url": 1})
-            if employee:
-                total_work_time[employee_email] += report.get("totalWorkMilliSeconds")
-    
+    # Fetch all manager user data once
+    managers = list(
+        collection_user.find({"user_type": "Manager"}, {"fName": 1, "user_email": 1, "profile_pic_url": 1, "_id": 0}))
+    manager_dict = {manager["user_email"]: manager for manager in managers}
+
+    # Calculate total work time for each manager using aggregation
+    time_reports = collection_emp_time_rep.aggregate([
+        {"$group": {"_id": "$user_email", "totalWorkMilliSeconds": {"$sum": "$totalWorkMilliSeconds"}}}
+    ])
+
     results = []
-    for employee_email, total_milliseconds in total_work_time.items():
-        employee = collection_user.find_one({"user_email": employee_email}, {"fName": 1, "_id": 0, "profile_pic_url": 1})
-        if employee:
-            employee_name = employee.get("fName")
+    for report in time_reports:
+        manager_email = report["_id"]
+        total_milliseconds = report["totalWorkMilliSeconds"]
+
+        if manager_email in manager_dict:
+            manager = manager_dict[manager_email]
+            manager_name = manager.get("fName")
             total_seconds = total_milliseconds // 1000
             hours = total_seconds // 3600
             minutes = (total_seconds % 3600) // 60
             seconds = (total_seconds % 3600) % 60
             hms_string = f"Total hours {hours:02}:{minutes:02}:{seconds:02}"
             report_with_name = {
-                "name": employee_name,
+                "name": manager_name,
                 "details": hms_string,
-                "dp": employee.get("profile_pic_url")
+                "dp": manager.get("profile_pic_url")
             }
             results.append(report_with_name)
+
     return results
 
 async def get_employee_attendance_calender_service(current_user):
